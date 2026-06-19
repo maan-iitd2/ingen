@@ -1,0 +1,69 @@
+# Line-ending & content normalization for cross-platform portability (Windows / Linux / macOS).
+#
+# Why this file exists:
+#   Without it, line endings depend on each contributor's local `core.autocrlf`, which produces
+#   inconsistent blobs and the "LF will be replaced by CRLF" warnings. With it, Git stores LF in
+#   the repository for all text files and checks out the platform-native ending — deterministically,
+#   regardless of anyone's local Git settings. The repository, not the machine, is authoritative.
+#
+# After adding/changing this file, normalize the existing index once:
+#   git add --renormalize .
+#   git commit -m "Normalize line endings via .gitattributes"
+
+# Default: let Git detect text vs binary and normalize text to LF in the repo.
+* text=auto
+
+# --- Explicit text types (documents intent; harmless if redundant with text=auto) ---
+*.py          text
+*.pyi         text
+*.js          text
+*.jsx         text
+*.ts          text
+*.tsx         text
+*.json        text
+*.css         text
+*.scss        text
+*.html        text
+*.md          text
+*.yml         text
+*.yaml        text
+*.xml         text
+*.csv         text
+*.psv         text
+*.txt         text
+*.toml        text
+*.cfg         text
+*.ini         text
+*.in          text
+*.properties  text
+*.svg         text
+.gitignore        text
+.gitattributes    text
+LICENSE           text
+
+# --- Files that MUST keep a specific ending on every platform ---
+# Shell scripts must be LF or they break on Linux/macOS (even if authored on Windows).
+*.sh    text eol=lf
+*.bash  text eol=lf
+# Windows scripts must be CRLF.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# --- Binary files: never apply EOL conversion or text diffing ---
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.pdf   binary
+*.xls   binary
+*.xlsx  binary
+*.whl   binary
+*.zip   binary
+*.gz    binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary

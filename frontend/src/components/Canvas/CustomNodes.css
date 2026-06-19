@@ -1,0 +1,49 @@
+.custom-node {
+  padding: 0 !important;
+  width: 220px;
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.custom-node:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary) !important;
+}
+
+.node-header {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-3);
+  gap: var(--spacing-3);
+  border-left: 4px solid var(--color-primary);
+}
+
+.node-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.node-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-handle {
+  width: 10px !important;
+  height: 10px !important;
+  background-color: var(--color-surface) !important;
+  border: 2px solid var(--color-primary) !important;
+}
+
+.react-flow__node.selected .custom-node {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(120, 83, 236, 0.2) !important;
+}
