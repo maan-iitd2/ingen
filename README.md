@@ -1,64 +1,102 @@
 # InGen
 
-InGen is a command line tool written on top of [pandas](https://pandas.pydata.org/) and
-[great_expectations](https://greatexpectations.io/) to perform small scale data transformations and validations
-without writing code. It is designed for developers and analysts to quickly transform data by specifying their
-requirements in a simple YAML file.
+InGen is a three-tier data transformation and validation platform:
 
-## Table of Contents
+- **`ingen/`** — the core CLI (`python -m ingen <config.yml>`) that performs codeless data transforms/validations driven by YAML config, built on pandas + great_expectations. Published as PyPI package `ingen-lib`.
+- **`backend/`** — thin FastAPI wrapper that shells out to the CLI and returns structured JSON results (local/trusted dev only).
+- **`frontend/`** — "InGen Studio", a Next.js 15 / React 19 SPA for visually building YAML configs. Runs in mock mode (localStorage, simulated runs) or http mode (connects to backend).
 
-- [InGen](#ingen)
-  - [Table of Contents](#table-of-contents)
-  - [Installation](#installation)
-  - [Examples](#examples)
-  - [Contributing](#contributing)
-  - [License](#license)
+## Quick Start
 
-## Installation
-Note: This project has been tested on python version 3.9.6 on MacOS Ventura with apple chip.
+### Prerequisites
+- Python 3.9–3.12 (not 3.13+; great_expectations requires numpy<2)
+- Node.js 18+ (for frontend)
 
-To install the project locally follow the steps:
-1. Make sure you have Python 3.9.6 installed on your system.
-2. To be able to build the project locally, you will need to install the `build` package
-    ```
-    pip install build
-    ```
-3. Clone the repository
-    ```
-    git clone git@github.com:blackrock/ingen.git
-    ```
-4. Build the project
-    ```
-    cd ingen
-    python -m build
-    ```
-5. Install the wheel
-    ```
-    pip install dist/ingen-*.whl
-    ```
-6. Run the project
-    ```
-   python -m ingen <metadata file path>
-    ```
+### Setup
 
-## Examples
-Checkout the sample metadata files in the `examples` directory to see how InterfaceGenerator can be used to solve
-common data problems.
+**1. Python environment & CLI:**
+```bash
+./setup.ps1                        # Creates .venv (Python 3.12), installs packages
+# or manually:
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e .                   # Install ingen + runtime deps
+pip install -r backend/requirements.txt
+```
 
-| Examples                                                       |
-| -------------------------------------------------------------- |
-| [Merge two CSV files](./examples/merge_two_csvs.md)            |
-| [Database as source](./examples/extract_data_from_database.md) |
-| [Convert XML to CSV/Excel](./examples/xml_to_csv.md)|
+**2. Run CLI directly:**
+```bash
+python -m ingen sample-configs/customer_pipeline.yaml
+```
 
+**3. Run backend (from repo root, so relative paths resolve):**
+```bash
+./start_backend.ps1                # uvicorn backend.app.main:app --reload --port 8000
+```
 
-For a complete list of configuration options, see the metadata reference documentation [here](./docs/config_reference.md).
+**4. Run frontend (in `frontend/` directory):**
+```bash
+npm install
+npm run dev                        # http://localhost:3000
+```
+
+When frontend starts, set `NEXT_PUBLIC_ADAPTER_MODE` to `http` in `.env` to connect to backend.
+
+## Architecture
+
+### Pipeline Flow
+```
+read → validate(raw) → pre_process → format → post_process → validate(formatted) → notify → write
+```
+
+Each stage is pluggable and dispatched by `type` strings in YAML:
+- **data_source/** — file/database/API readers
+- **pre_processor/** — merge, union, filter, aggregate, melt, etc.
+- **formatters/** — column-level transforms
+- **validation/** — great_expectations checks
+- **writer/** — CSV, Excel, JSON outputs
+
+### Backend
+- `backend/app/main.py` — HTTP routing only
+- `backend/app/runner.py` — executes CLI, returns run records
+- `backend/app/schema_validate.py` — validates config without running
+
+### Frontend
+- File-based routing: `src/app/`
+- Adapter pattern: `src/adapters/` switches between HTTP (backend) and mock (localStorage)
+- Models: `src/models/` — in-memory config representation
+- Serializers: `src/serializers/` — convert between app config and YAML
+
+## Configuration
+
+Config shape reference: [docs/config_reference.md](./docs/config_reference.md)
+
+Examples of pipeline use cases:
+- [Merge two CSV files](./examples/merge_two_csvs.md)
+- [Extract data from database](./examples/extract_data_from_database.md)
+- [Convert XML to CSV/Excel](./examples/xml_to_csv.md)
+
+Sample configs to run: `sample-configs/`
+Sample data for testing: `sample-data/`
+
+## Testing
+
+```bash
+pytest test/                       # Core library tests
+pytest backend/tests/              # Backend wrapper tests
+pytest test/formatters/test_common_formatters.py::test_name   # Single test
+cd frontend && npm run test        # Frontend tests
+```
+
+## Notes
+
+- **great_expectations version:** pinned <1.0 (uses legacy Dataset API removed in GE 1.0)
+- **numpy:** pinned <2 (for Python 3.12 compatibility; 3.13+ not supported)
+- **DCO sign-off required:** `git commit -s`
 
 ## Contributing
 
-All contributions are welcome, please see [open issues](https://github.com/blackrock/interface-generator/issues) or
-create a [new issue](https://github.com/blackrock/interface-generator/issues/new/choose) to discuss your ideas. Please see our
-[contributing guidelines](https://github.com/blackrock/interface-generator/blob/main/CONTRIBUTING.md) for more information.
+All contributions are welcome. Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ## License
-[LICENSE](https://github.com/blackrock/interface-generator/blob/main/LICENSE)
+[LICENSE](./LICENSE)
