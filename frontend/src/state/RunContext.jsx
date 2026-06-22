@@ -5,10 +5,10 @@
 //  drilling. Calls RunService.simulate (streaming events) and, on completion, persists the record via
 //  HistoryService. Reads the model from ConfigContext, so it stays in sync with the edited config.
 
-/* eslint-disable react-refresh/only-export-components -- context module exports provider + hook together */
 import { createContext, useContext, useState, useRef, useCallback } from 'react';
 
 import { getServices } from '../services/index.js';
+import { makeId } from '../utils/id.js';
 import { useConfig } from './ConfigContext.jsx';
 
 const RunContext = createContext(null);
@@ -28,14 +28,34 @@ export function RunProvider({ children }) {
     setRecord(null);
 
     const { run, history } = getServices();
-    const result = await run.simulate(model, overrides, {
-      onEvent: (e) => setEvents((prev) => [...prev, e]),
-      isCancelled: () => cancelRef.current,
-    });
-
-    setRecord(result);
-    setStatus('done');
-    await history.add(result);
+    try {
+      const result = await run.simulate(model, overrides, {
+        onEvent: (e) => setEvents((prev) => [...prev, e]),
+        isCancelled: () => cancelRef.current,
+      });
+      if (cancelRef.current) { setStatus('idle'); return; }
+      setRecord(result);
+      setStatus('done');
+      await history.add(result);
+    } catch (err) {
+      if (cancelRef.current) { setStatus('idle'); return; }
+      // e.g. the HTTP wrapper is unreachable. Surface it as a failed run instead of hanging.
+      const ts = new Date().toISOString();
+      setRecord({
+        runId: makeId('run_error'),
+        configId: model.meta.id,
+        configName: model.meta.name,
+        status: 'failed',
+        startedAt: ts,
+        finishedAt: ts,
+        durationMs: 0,
+        stages: [],
+        logs: [{ type: 'log', ts, level: 'error', message: `Run failed: ${err?.message ?? err}` }],
+        validation: { results: [], summary: { passed: 0, failed: 0, warning: 0, total: 0 } },
+        overrides,
+      });
+      setStatus('done');
+    }
   }, [model, status]);
 
   const cancel = useCallback(() => { cancelRef.current = true; }, []);

@@ -122,5 +122,17 @@ export const ADAPTER_MODE = Object.freeze({
 /** Storage key namespace for the localStorage-backed mock persistence. */
 export const STORAGE_NAMESPACE = 'ingen-studio';
 
+/**
+ * Stable id of the blank "draft" config the app starts fresh with on every load. A fixed id (rather
+ * than a random one) means deep links like /configs/cfg_draft/... still resolve after a reload.
+ */
+export const DRAFT_CONFIG_ID = 'cfg_draft';
+
 /** Current ConfigModel schema version — bump when the normalized shape changes. */
 export const CONFIG_MODEL_VERSION = 1;
+
+/**
+ * Bump this string whenever the localStorage schema changes or a clean reseed is needed.
+ * On mismatch, the boot sequence wipes all ingen-studio:* keys and reseeds from scratch.
+ */
+export const DATA_VERSION = 'v2';

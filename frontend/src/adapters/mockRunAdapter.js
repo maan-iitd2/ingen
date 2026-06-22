@@ -5,11 +5,11 @@
 //  configured expectations (incl. blocker abort / critical row-drop semantics).
 
 import { RunService } from '../services/runService.js';
+import { makeId } from '../utils/id.js';
 import { MockValidationAdapter } from './mockValidationAdapter.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
-const rid = () => `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 
 const STAGE_LABEL = {
   read: 'Reading sources',
@@ -110,7 +110,7 @@ export class MockRunAdapter extends RunService {
     emit({ type: 'log', level: status === 'success' ? 'info' : 'warn', message: `Run ${status} in ${(durationMs / 1000).toFixed(2)}s` });
 
     return {
-      runId: rid(),
+      runId: makeId('run'),
       configId: model.meta.id,
       configName: model.meta.name,
       status,

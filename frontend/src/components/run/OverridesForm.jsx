@@ -10,6 +10,18 @@ export default function OverridesForm({ running, onRun, onCancel }) {
   const [runDate, setRunDate] = useState('');
   const [selected, setSelected] = useState(() => new Set(allInterfaces));
 
+  // The model often loads AFTER this form first mounts (allInterfaces was []), which left every
+  // interface unchecked and the Run button disabled. Re-seed the selection (default = all) whenever
+  // the set of interface NAMES changes, using React's render-phase "adjust state on prop change"
+  // pattern (no effect — avoids a cascading-render lint and an extra commit). Keyed on the names so
+  // unrelated model edits don't reset a user's manual selection.
+  const ifaceKey = allInterfaces.join(' ');
+  const [prevIfaceKey, setPrevIfaceKey] = useState(ifaceKey);
+  if (prevIfaceKey !== ifaceKey) {
+    setPrevIfaceKey(ifaceKey);
+    setSelected(new Set(allInterfaces));
+  }
+
   const toggle = (name) => setSelected((prev) => {
     const next = new Set(prev);
     if (next.has(name)) next.delete(name); else next.add(name);

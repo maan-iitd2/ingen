@@ -4,7 +4,6 @@
 //  drives palettes/dropdowns; in Phase 1 it is consumed lightly (e.g. to label available output
 //  types) but the provider establishes the pattern for Phase 2 forms.
 
-/* eslint-disable react-refresh/only-export-components -- context module intentionally exports its provider + hook together */
 import { createContext, useContext, useEffect, useState } from 'react';
 import { getServices } from '../services/index.js';
 

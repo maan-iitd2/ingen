@@ -10,17 +10,12 @@ import {
   SOURCE_TYPES,
   OUTPUT_TYPES,
 } from './constants.js';
+import { makeId } from '../utils/id.js';
 
 /** @typedef {import('./types.js').ConfigModel} ConfigModel */
 /** @typedef {import('./types.js').Source} Source */
 /** @typedef {import('./types.js').Interface} Interface */
 /** @typedef {import('./types.js').ConfigIssue} ConfigIssue */
-
-/** Small, dependency-free unique id. Good enough for client-side config ids. */
-function makeId(prefix = 'cfg') {
-  const rand = Math.random().toString(36).slice(2, 8);
-  return `${prefix}_${Date.now().toString(36)}_${rand}`;
-}
 
 /**
  * Create an empty, valid ConfigModel.
@@ -31,7 +26,7 @@ export function createEmptyConfig(opts = {}) {
   const now = new Date().toISOString();
   return {
     meta: {
-      id: opts.id ?? makeId(),
+      id: opts.id ?? makeId('cfg'),
       name: opts.name ?? 'Untitled config',
       version: CONFIG_MODEL_VERSION,
       createdAt: now,

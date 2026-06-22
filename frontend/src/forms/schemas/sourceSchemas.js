@@ -5,47 +5,57 @@
 import { FILE_TYPES } from '../../models/constants.js';
 
 const FILE = [
-  { key: 'file_type', label: 'File type', kind: 'select', options: Object.values(FILE_TYPES) },
-  { key: 'file_path', label: 'File path', kind: 'text', placeholder: 'data/file_$date(%Y%m%d).csv' },
-  { key: 'delimiter', label: 'Delimiter', kind: 'text', placeholder: ',' },
+  { key: 'file_type', label: 'File type', kind: 'select', options: Object.values(FILE_TYPES), required: true },
+  { key: 'file_path', label: 'File path', kind: 'text', placeholder: 'data/file_$date(%Y%m%d).csv', required: true },
+  { key: 'delimiter', label: 'Delimiter', kind: 'text', placeholder: ',', visibleIf: (v) => v.file_type === FILE_TYPES.DELIMITED_FILE },
   { key: 'columns', label: 'Columns', kind: 'tags' },
-  { key: 'sheet_name', label: 'Sheet name (excel)', kind: 'text' },
-  { key: 'root_tag', label: 'Root tag (xml)', kind: 'text' },
-  { key: 'record_path', label: 'Record path (json)', kind: 'text' },
-  { key: 'skip_header_size', label: 'Skip header rows', kind: 'number' },
-  { key: 'skip_trailer_size', label: 'Skip trailer rows', kind: 'number' },
+  { key: 'sheet_name', label: 'Sheet name (excel)', kind: 'text', visibleIf: (v) => v.file_type === FILE_TYPES.EXCEL },
+  { key: 'root_tag', label: 'Root tag (xml)', kind: 'text', visibleIf: (v) => v.file_type === FILE_TYPES.XML },
+  { key: 'record_path', label: 'Record path (json)', kind: 'text', visibleIf: (v) => v.file_type === FILE_TYPES.JSON },
+  { key: 'skip_header_size', label: 'Skip header rows', kind: 'number', visibleIf: (v) => [FILE_TYPES.DELIMITED_FILE, FILE_TYPES.EXCEL, FILE_TYPES.FIXED_WIDTH].includes(v.file_type) },
+  { key: 'skip_trailer_size', label: 'Skip trailer rows', kind: 'number', visibleIf: (v) => [FILE_TYPES.DELIMITED_FILE, FILE_TYPES.EXCEL, FILE_TYPES.FIXED_WIDTH].includes(v.file_type) },
+  { key: 'encoding', label: 'Encoding', kind: 'text', placeholder: 'utf-8', visibleIf: (v) => [FILE_TYPES.DELIMITED_FILE, FILE_TYPES.FIXED_WIDTH, FILE_TYPES.JSON, FILE_TYPES.XML].includes(v.file_type) },
+  { key: 'dtype', label: 'Column dtypes', kind: 'json', rows: 2, help: '{ "col1": "str", "col2": "int" }' },
+  { key: 'col_specification', label: 'Column widths (fixed_width)', kind: 'json', rows: 2, help: '[[0,10],[10,20]]', visibleIf: (v) => v.file_type === FILE_TYPES.FIXED_WIDTH },
   { key: 'use_infile', label: 'Use --infile override', kind: 'toggle' },
   { key: 'return_empty_if_not_exist', label: 'Empty frame if missing', kind: 'toggle' },
 ];
 
 const MYSQL = [
-  { key: 'db_token', label: 'DB token', kind: 'text' },
-  { key: 'query', label: 'SQL query', kind: 'textarea', rows: 4, placeholder: 'SELECT ... WHERE date = {date}' },
+  { key: 'database', label: 'Database name', kind: 'text', help: 'Matches the database key in your properties file', required: true },
+  { key: 'query', label: 'SQL query', kind: 'textarea', rows: 4, placeholder: 'SELECT col1, col2 FROM table WHERE date = {date}', required: true },
 ];
 
+// Ordered by how often you reach for it: request → response shaping → retries → batching.
+// Niche knobs are gated behind the field that gives them meaning (visibleIf), so the Advanced
+// panel starts short and grows only as you opt in.
 const API = [
-  { key: 'url', label: 'Base URL', kind: 'text' },
-  { key: 'method', label: 'Method', kind: 'select', options: ['GET', 'POST', 'PUT', 'DELETE'] },
+  { key: 'url', label: 'Base URL', kind: 'text', required: true },
+  { key: 'method', label: 'Method', kind: 'select', options: ['GET', 'POST', 'PUT', 'DELETE'], required: true },
+  // — request —
   { key: 'headers', label: 'Headers', kind: 'json', rows: 3 },
-  { key: 'request_body', label: 'Request body', kind: 'textarea', rows: 3 },
+  { key: 'request_body', label: 'Request body', kind: 'textarea', rows: 3, visibleIf: (v) => ['POST', 'PUT', 'PATCH'].includes(v.method) },
   { key: 'auth', label: 'Auth', kind: 'group', fields: [
     { key: 'type', label: 'Type', kind: 'text', placeholder: 'BasicAuth' },
     { key: 'username', label: 'Username/token', kind: 'text' },
     { key: 'pwd', label: 'Password/token', kind: 'text' },
   ] },
+  { key: 'url_params', label: 'URL params', kind: 'json', rows: 3 },
+  // — response shaping —
   { key: 'data_node', label: 'data_node', kind: 'tags' },
   { key: 'data_key', label: 'data_key', kind: 'tags' },
+  { key: 'success_criteria', label: 'Success criteria', kind: 'text' },
+  { key: 'criteria_option', label: 'Criteria option', kind: 'json', rows: 2, visibleIf: (v) => !!v.success_criteria },
+  // — retries (interval only matters once you retry) —
+  { key: 'retries', label: 'Retries', kind: 'number' },
+  { key: 'interval', label: 'Interval (s)', kind: 'number', visibleIf: (v) => v.retries != null },
+  // — batching (queue/concurrency only matter once you batch) —
   { key: 'batch', label: 'Batch', kind: 'group', fields: [
     { key: 'size', label: 'Size', kind: 'number' },
     { key: 'id', label: 'Batch id', kind: 'text' },
   ] },
-  { key: 'url_params', label: 'URL params', kind: 'json', rows: 3 },
-  { key: 'retries', label: 'Retries', kind: 'number' },
-  { key: 'interval', label: 'Interval (s)', kind: 'number' },
-  { key: 'success_criteria', label: 'Success criteria', kind: 'text' },
-  { key: 'criteria_option', label: 'Criteria option', kind: 'json', rows: 2 },
-  { key: 'queue_size', label: 'Queue size', kind: 'number' },
-  { key: 'tasks_len', label: 'Concurrent tasks', kind: 'number' },
+  { key: 'queue_size', label: 'Queue size', kind: 'number', visibleIf: (v) => v.batch?.size != null },
+  { key: 'tasks_len', label: 'Concurrent tasks', kind: 'number', visibleIf: (v) => v.batch?.size != null },
 ];
 
 // json + rawdatastore have no body fields (payload/frame supplied at runtime / in-memory).
@@ -55,4 +65,14 @@ const SCHEMAS = { file: FILE, mysql: MYSQL, api: API, json: NONE, rawdatastore: 
 
 export function sourceSchema(type) {
   return SCHEMAS[type] ?? [];
+}
+
+/** Fields flagged `required` — shown up-front in the source loader. */
+export function requiredSourceFields(type) {
+  return (SCHEMAS[type] ?? []).filter((f) => f.required);
+}
+
+/** Everything else — collapsed under "Advanced". */
+export function advancedSourceFields(type) {
+  return (SCHEMAS[type] ?? []).filter((f) => !f.required);
 }

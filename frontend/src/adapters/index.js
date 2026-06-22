@@ -10,6 +10,11 @@ import { MockCatalogAdapter } from './mockCatalogAdapter.js';
 import { MockValidationAdapter } from './mockValidationAdapter.js';
 import { MockRunAdapter } from './mockRunAdapter.js';
 import { MockHistoryAdapter } from './mockHistoryAdapter.js';
+import { HttpClient } from './httpClient.js';
+import { HttpConfigAdapter } from './httpConfigAdapter.js';
+import { HttpValidationAdapter } from './httpValidationAdapter.js';
+import { HttpRunAdapter } from './httpRunAdapter.js';
+import { HttpHistoryAdapter } from './httpHistoryAdapter.js';
 
 /**
  * @typedef {Object} ServiceSet
@@ -36,9 +41,18 @@ export function buildServices(mode = ADAPTER_MODE.MOCK) {
         history: new MockHistoryAdapter(),
       };
     }
-    case ADAPTER_MODE.HTTP:
-      // Future: construct Http* adapters (same interfaces) pointing at the FastAPI wrapper.
-      throw new Error('HTTP adapter not implemented yet (FastAPI wrapper is a future phase).');
+    case ADAPTER_MODE.HTTP: {
+      // Base URL of the FastAPI wrapper; configurable via NEXT_PUBLIC_API_BASE_URL.
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+      const client = new HttpClient(baseUrl);
+      return {
+        config: new HttpConfigAdapter(client), // CRUD via localStorage; validate → backend
+        catalog: new MockCatalogAdapter(),     // catalog is static (backend-derived constants)
+        validation: new HttpValidationAdapter(client),
+        run: new HttpRunAdapter(client),
+        history: new HttpHistoryAdapter(client),
+      };
+    }
     default:
       throw new Error(`Unknown adapter mode "${mode}"`);
   }

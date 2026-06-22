@@ -10,7 +10,6 @@
 //  This is the ONLY place that calls the service for config I/O, so swapping the mock adapter for
 //  the future HTTP adapter changes nothing here or in any consumer.
 
-/* eslint-disable react-refresh/only-export-components -- context module intentionally exports its provider + hook together */
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 
 import { getServices } from '../services/index.js';
@@ -35,6 +34,13 @@ export function ConfigProvider({ configId, children }) {
   const [model, setModel] = useState(null);
   const [status, setStatus] = useState('loading');
   const saveTimer = useRef(null);
+  // The last model reference that has been persisted. Drives the autosave decision (model !==
+  // savedRef → there are unsaved edits) WITHOUT coupling it to `status`, which is what caused the
+  // earlier data-loss race (a save resolving could cancel a pending save of a newer edit).
+  const savedRef = useRef(null);
+  // Always-current model reference, readable from inside an in-flight save's async closure so we
+  // can tell whether a newer edit landed while we were saving.
+  const modelRef = useRef(null);
 
   // Load the config. The provider is mounted with key={configId} (see ConfigWorkspace), so a
   // different config remounts this with fresh 'loading'/null state — no synchronous reset needed.
@@ -42,10 +48,19 @@ export function ConfigProvider({ configId, children }) {
     let alive = true;
     getServices()
       .config.get(configId)
-      .then((m) => { if (alive) { setModel(m); setStatus('saved'); } })
+      .then((m) => {
+        if (!alive) return;
+        savedRef.current = m;
+        modelRef.current = m;
+        setModel(m);
+        setStatus('saved');
+      })
       .catch(() => { if (alive) setStatus('error'); });
     return () => { alive = false; };
   }, [configId]);
+
+  // Keep modelRef in lockstep with the rendered model.
+  useEffect(() => { modelRef.current = model; }, [model]);
 
   // Apply an immutable update and mark dirty.
   const updateModel = useCallback((updater) => {
@@ -62,21 +77,27 @@ export function ConfigProvider({ configId, children }) {
     });
   }, [updateModel]);
 
-  // Debounced autosave (real persistence) on every dirty change.
+  // Debounced autosave (real persistence). Triggered by the MODEL changing away from the last
+  // persisted reference — never by `status`. Each edit reschedules the debounce; an in-flight save
+  // only flips the pill to 'saved' if no newer edit arrived meanwhile (otherwise the newer edit's
+  // own effect run keeps the save chain going), so the latest edit is never silently dropped.
   useEffect(() => {
-    if (status !== 'dirty' || !model) return;
+    if (!model || model === savedRef.current) return;
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
+      const toSave = model;
       setStatus('saving');
       try {
-        await getServices().config.update(model);
-        setStatus('saved');
+        await getServices().config.update(toSave);
+        savedRef.current = toSave;
+        // Only declare 'saved' if this is still the newest model; otherwise a pending save covers it.
+        if (modelRef.current === toSave) setStatus('saved');
       } catch {
         setStatus('error');
       }
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(saveTimer.current);
-  }, [status, model]);
+  }, [model]);
 
   // Derived, recomputed only when the model changes.
   const yaml = useMemo(() => (model ? modelToYaml(model) : ''), [model]);

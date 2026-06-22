@@ -440,9 +440,14 @@ def replace_value(dataframe, col_name, format_options, runtime_params):
     return dataframe
 
 def replace_in_list(row, from_value, to_value):
-    if not isinstance (row, list):
+    if not isinstance(row, list):
         return row
-    return [to_value if elem == from_value else elem for elem in row]
+    def _match(elem):
+        if from_value is None:
+            # Match both Python None and float NaN so list-cell behaviour mirrors fillna()
+            return elem is None or (isinstance(elem, float) and elem != elem)
+        return elem == from_value
+    return [to_value if _match(elem) else elem for elem in row]
 
 
 def extract_from_pattern(dataframe, col_name, format_options, runtime_params):

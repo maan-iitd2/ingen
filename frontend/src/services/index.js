@@ -1,8 +1,8 @@
 //  InGen Studio — services barrel + locator
 //
 //  Components import `getServices()` and never touch adapters directly. The active backend mode is
-//  read once from the Vite env (VITE_ADAPTER_MODE), defaulting to mock. This is the seam that makes
-//  the mock→FastAPI swap a one-line config change.
+//  read once from the Next env (NEXT_PUBLIC_ADAPTER_MODE), defaulting to mock. This is the seam that
+//  makes the mock→FastAPI swap a one-line config change.
 
 import { ADAPTER_MODE } from '../models/constants.js';
 import { buildServices } from '../adapters/index.js';
@@ -15,9 +15,14 @@ export { HistoryService } from './historyService.js';
 
 /** Resolve the configured adapter mode from the build env, defaulting to mock. */
 function resolveMode() {
-  // import.meta.env is provided by Vite; guard so the module is also usable in plain Node tests.
-  const env = typeof import.meta !== 'undefined' ? import.meta.env : undefined;
-  return env?.VITE_ADAPTER_MODE ?? ADAPTER_MODE.MOCK;
+  // Next inlines NEXT_PUBLIC_* at build time for client bundles; process.env also works in plain
+  // Node test runs, so no guard is needed.
+  return process.env.NEXT_PUBLIC_ADAPTER_MODE ?? ADAPTER_MODE.MOCK;
+}
+
+/** The active backend mode (one of ADAPTER_MODE.*). Lets the UI label real vs. simulated runs. */
+export function getAdapterMode() {
+  return resolveMode();
 }
 
 /** @type {import('../adapters/index.js').ServiceSet | null} */

@@ -53,20 +53,23 @@ export default function SchemaForm({ schema, value, onChange, ctx }) {
   const obj = value && typeof value === 'object' ? value : {};
   return (
     <div className="schemaform">
-      {schema.map((field) => (
-        <FieldRenderer
-          key={field.key}
-          field={field}
-          ctx={ctx}
-          value={obj[field.key]}
-          onChange={(v) => {
-            const next = { ...obj };
-            if (v === undefined) delete next[field.key];
-            else next[field.key] = v;
-            onChange(next);
-          }}
-        />
-      ))}
+      {schema.map((field) => {
+        if (field.visibleIf && !field.visibleIf(obj)) return null;
+        return (
+          <FieldRenderer
+            key={field.key}
+            field={field}
+            ctx={ctx}
+            value={obj[field.key]}
+            onChange={(v) => {
+              const next = { ...obj };
+              if (v === undefined) delete next[field.key];
+              else next[field.key] = v;
+              onChange(next);
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

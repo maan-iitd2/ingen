@@ -22,11 +22,12 @@ class NotEqualsFilter(Process):
         source = config.get('source')
         cols = config.get('cols', [])
         
-        #Get source data or use current data 
-        if source and source in sources_data:
-            df = sources_data.get(source)
-        else: 
-            df = data 
+        if source:
+            if source not in sources_data:
+                raise KeyError(f"Source '{source}' not found in sources_data for not_equals_filter")
+            df = sources_data[source]
+        else:
+            df = data
         
         if df is None or df.empty:
             return pd.DataFrame()

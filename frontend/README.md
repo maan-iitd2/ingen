@@ -1,16 +1,52 @@
-# React + Vite
+# InGen Studio — frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 single-page app built on **Next.js 15 (App Router)**. The UI is fully client-rendered: the
+data store lives in browser `localStorage` (mock mode) or talks to the FastAPI wrapper (http mode).
 
-Currently, two official plugins are available:
+## Develop
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev      # next dev — http://localhost:3000
+```
 
-## React Compiler
+The app redirects `/` to the seed config workspace, then on to its first interface editor.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Scripts
 
-## Expanding the ESLint configuration
+| Script          | What it does                                  |
+| --------------- | --------------------------------------------- |
+| `npm run dev`   | Start the Next dev server (HMR)               |
+| `npm run build` | Production build (`.next/`)                   |
+| `npm run start` | Serve the production build                    |
+| `npm run lint`  | ESLint (flat config)                          |
+| `npm run test`  | Node test runner over `src/**/*.test.js`      |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Configuration
+
+Runtime config is read from `NEXT_PUBLIC_*` env vars (see `.env.example`):
+
+- `NEXT_PUBLIC_ADAPTER_MODE` — `mock` (default; localStorage + simulated runs) or `http` (FastAPI wrapper)
+- `NEXT_PUBLIC_API_BASE_URL` — FastAPI base URL, used only in `http` mode
+
+Copy `.env.example` to `.env.local` to override locally. `.env.http` is a ready-made http-mode preset.
+
+## Routing
+
+Routes are file-based under `src/app/`:
+
+```
+src/app/
+  layout.jsx                                  root shell (BootGate + AppShell brand bar)
+  page.jsx                                    redirects to the seed config
+  not-found.jsx
+  configs/[configId]/
+    layout.jsx                                catalog + config providers + WorkspaceLayout
+    page.jsx                                  redirects to the first interface
+    interfaces/[interfaceName]/page.jsx       InterfaceEditor
+    sources/page.jsx                          SourcesRegistry
+    run/page.jsx                              RunConsole
+    history/page.jsx                          HistoryView
+```
+
+Imports use the `@/*` alias (→ `src/*`) where convenient; see `jsconfig.json`.

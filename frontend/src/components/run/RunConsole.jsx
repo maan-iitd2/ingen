@@ -4,6 +4,8 @@
 //  validation results. No backend execution — RunService.simulate drives everything (DESIGN §3).
 
 import { RunProvider, useRun } from '../../state/RunContext.jsx';
+import { getAdapterMode } from '../../services/index.js';
+import { ADAPTER_MODE } from '../../models/constants.js';
 import OverridesForm from './OverridesForm.jsx';
 import StageTimeline from './StageTimeline.jsx';
 import LogStream from './LogStream.jsx';
@@ -13,15 +15,22 @@ const STATUS_PILL = {
   success: 'pill--ok', partial: 'pill--warn', failed: 'pill--err',
 };
 
+// In HTTP mode the run is real (the wrapper executes `python -m ingen`); only mock mode is simulated.
+const SUBTITLE = {
+  [ADAPTER_MODE.HTTP]: 'Executes the config through the InGen backend. Logs and results are live.',
+  [ADAPTER_MODE.MOCK]: 'Simulated execution — no backend. Logs and results are mocked.',
+};
+
 function Console() {
   const { status, events, record, start, cancel } = useRun();
+  const subtitle = SUBTITLE[getAdapterMode()] ?? SUBTITLE[ADAPTER_MODE.MOCK];
 
   return (
     <section className="editor">
       <header className="editor__head editor__head--row">
         <div>
           <h1 className="editor__title">Run console</h1>
-          <p className="editor__subtitle">Simulated execution — no backend. Logs and results are mocked.</p>
+          <p className="editor__subtitle">{subtitle}</p>
         </div>
         {record && (
           <span className={`pill ${STATUS_PILL[record.status]}`}>
