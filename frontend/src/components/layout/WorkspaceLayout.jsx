@@ -4,15 +4,18 @@
 //  No more WorkspaceTopbar — config info is in the brand bar. Left sidebar is collapsible.
 //  Injects config name + save status into the brand bar's right portal via a useEffect.
 
-import { useState } from 'react';
+import { useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
+import { Pencil } from 'lucide-react';
 
 import NavRail from './NavRail.jsx';
 import YamlPreviewPanel from '../yaml/YamlPreviewPanel.jsx';
 import ErrorBoundary from '../common/ErrorBoundary.jsx';
 import { useConfig } from '../../state/ConfigContext.jsx';
+import { useWorkspaceShortcuts } from '../../hooks/useWorkspaceShortcuts.js';
+import { useDocTitle } from '../../hooks/useDocTitle.js';
 
 const PILL = {
   loading: { label: 'Loading…', cls: 'pill--muted' },
@@ -33,12 +36,34 @@ function BrandBarPortal({ children }) {
 export default function WorkspaceLayout({ configId, children }) {
   const [yamlCollapsed, setYamlCollapsed] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
-  const { model, status, issues } = useConfig();
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState('');
+  const nameInputRef = useRef(null);
+  const { model, status, issues, updateModel, undo, redo, saveNow } = useConfig();
+  useWorkspaceShortcuts({ onSave: saveNow, onUndo: undo, onRedo: redo });
   const pathname = usePathname();
   const { interfaceName } = useParams() || {};
 
+  useDocTitle(interfaceName ? decodeURIComponent(interfaceName) : null, model?.meta.name);
   const pill = PILL[status] ?? PILL.loading;
   const errorCount = issues.filter((i) => i.level === 'error').length;
+
+  const startNameEdit = useCallback(() => {
+    setNameValue(model?.meta.name ?? '');
+    setEditingName(true);
+  }, [model]);
+
+  useLayoutEffect(() => {
+    if (editingName) nameInputRef.current?.select();
+  }, [editingName]);
+
+  const commitNameEdit = useCallback(() => {
+    const name = nameValue.trim();
+    if (name && model) updateModel((m) => ({ ...m, meta: { ...m.meta, name } }));
+    setEditingName(false);
+  }, [nameValue, model, updateModel]);
+
+  const cancelNameEdit = useCallback(() => setEditingName(false), []);
 
   let panesCls = 'workspace__panes';
   if (yamlCollapsed) panesCls += ' workspace__panes--noyaml';
@@ -53,7 +78,23 @@ export default function WorkspaceLayout({ configId, children }) {
     <div className="workspace">
       {/* Inject config info into brand bar right side */}
       <BrandBarPortal>
-        <span className="brandbar__config-name">{model?.meta.name ?? '—'}</span>
+        {editingName ? (
+          <input
+            ref={nameInputRef}
+            className="brandbar__name-input"
+            value={nameValue}
+            onChange={(e) => setNameValue(e.target.value)}
+            onBlur={commitNameEdit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitNameEdit();
+              if (e.key === 'Escape') cancelNameEdit();
+            }}
+          />
+        ) : (
+          <button className="brandbar__config-name brandbar__config-name--btn" onClick={startNameEdit} title="Click to rename">
+            {model?.meta.name ?? '—'} <Pencil size={11} style={{ opacity: 0.5, marginLeft: 3 }} />
+          </button>
+        )}
         <span className={`pill ${pill.cls}`}>{pill.label}</span>
         {errorCount > 0 && (
           <span className="pill pill--err" title="Validation errors">

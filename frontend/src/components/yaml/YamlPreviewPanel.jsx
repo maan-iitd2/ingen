@@ -10,7 +10,7 @@
 //  and conservative (keys are simple identifiers in generated output), so it never mangles content —
 //  worst case a line just renders in the default color.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useConfig } from '../../state/ConfigContext.jsx';
 
 function download(filename, text) {
@@ -65,6 +65,20 @@ export default function YamlPreviewPanel() {
 
   const lines = useMemo(() => yaml.replace(/\n$/, '').split('\n'), [yaml]);
 
+  // Track previous lines for diff highlighting.
+  const prevLinesRef = useRef(lines);
+  const changedSet = useMemo(() => {
+    const prev = prevLinesRef.current;
+    const set = new Set();
+    lines.forEach((line, i) => { if (line !== prev[i]) set.add(i); });
+    // Also mark lines beyond old length as new.
+    if (lines.length > prev.length) {
+      for (let i = prev.length; i < lines.length; i++) set.add(i);
+    }
+    prevLinesRef.current = lines;
+    return set;
+  }, [lines]);
+
   const copy = async () => {
     try {
       await navigator.clipboard?.writeText(yaml);
@@ -91,7 +105,7 @@ export default function YamlPreviewPanel() {
       </div>
       <div className="yamlpanel__code">
         {lines.map((line, i) => (
-          <div className="yamlpanel__line" key={i}>
+          <div className={`yamlpanel__line${changedSet.has(i) ? ' yamlpanel__line--changed' : ''}`} key={i}>
             <span className="yamlpanel__ln" aria-hidden="true">{i + 1}</span>
             <code className="yamlpanel__lc">{tokens(line)}</code>
           </div>

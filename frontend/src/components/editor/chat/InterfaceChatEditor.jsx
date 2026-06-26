@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { Bot, User, Sparkles } from 'lucide-react';
 import { useConfig } from '../../../state/ConfigContext.jsx';
 import { useChatSession } from '../../../state/ChatSessionContext.jsx';
 import { applyOps } from '../../../models/applyIntent.js';
-import { interpretMessage, warmup } from '../../../services/chatService.js';
+import { getServices } from '../../../services/index.js';
 import { columnsForSources } from '../../../lib/columnStore.js';
 import { modelToYaml } from '../../../serializers/yamlSerializer.js';
+import MiniMarkdown from '../../common/MiniMarkdown.jsx';
 import {
   getActiveSession,
   getSessions,
@@ -29,22 +31,27 @@ function regexOps(text) {
     const cols = m[1].split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
     return cols.length ? [{ op: 'add_columns', cols }] : [];
   }
+  if ((m = t.match(/^remove\s+columns?\s+(\S+)/i))) return [{ op: 'remove_column', name: m[1] }];
   if ((m = t.match(/^rename\s+(\w+)\s+(?:to\s+)?(\w+)/i))) return [{ op: 'rename_column', from: m[1], to: m[2] }];
   if ((m = t.match(/^add\s+source\s+(\w+)\s+(\w+)/i))) return [{ op: 'add_source', name: m[1], type: m[2].toLowerCase() }];
+  if ((m = t.match(/^remove\s+source\s+(\S+)/i))) return [{ op: 'remove_source', name: m[1] }];
+  if ((m = t.match(/^add\s+transform\s+(\w+)/i))) return [{ op: 'add_transform', type: m[1].toLowerCase() }];
   if ((m = t.match(/^filter\s+(\w+)\s+(.+)/i))) return [{ op: 'add_filter', col: m[1], val: m[2] }];
   if ((m = t.match(/^change\s+output\s+to\s+(\w+)/i))) return [{ op: 'set_output', type: m[1].toLowerCase() }];
+  if (/^(explain|describe|what.*(pipeline|interface))/i.test(t)) return [{ op: 'explain' }];
   return [];
 }
 
 // Suggestion chips derived from current state — always valid, never LLM-guessed.
 function suggestionsFor(iface, columns) {
   const out = [];
+  out.push('explain');
   if (columns.length) out.push(`add columns ${columns.slice(0, 3).join(', ')}`);
   else if ((iface?.columns?.length ?? 0) === 0) out.push('add columns id, status, amount');
   const col = columns[0] || (iface?.columns?.[0]?.src_col_name);
   if (col) out.push(`filter ${col} CLOSED`);
   if (!iface?.output?.type) out.push('change output to excel');
-  return out.slice(0, 3);
+  return out.slice(0, 4);
 }
 
 export default function InterfaceChatEditor({ interfaceName, iface }) {
@@ -59,7 +66,7 @@ export default function InterfaceChatEditor({ interfaceName, iface }) {
   const knownColumns = columnsForSources(iface?.sources ?? []);
 
   // Pre-warm the local model once when the chat opens, so the first message isn't slow.
-  useEffect(() => { warmup(); }, []);
+  useEffect(() => { getServices().chat.warmup(); }, []);
 
   useEffect(() => {
     const active = getActiveSession(interfaceName);
@@ -109,21 +116,22 @@ export default function InterfaceChatEditor({ interfaceName, iface }) {
     setInputValue('');
     setIsTyping(true);
 
-    // Ask the local model for a concise reply + ordered ops, giving it the current pipeline YAML so
-    // it edits what exists instead of starting fresh. Fall back to the regex parser if it's down.
+    // Snapshot YAML from current model for the LLM context, then fire the request.
     const yaml = (() => { try { return modelToYaml(model); } catch { return ''; } })();
-    interpretMessage(textToSend, knownColumns, yaml, interfaceName)
+    getServices().chat.interpret(textToSend, knownColumns, yaml, interfaceName)
       .catch(() => ({ ops: regexOps(textToSend), reply: '' }))
       .then(({ ops, reply: modelReply }) => {
-        // applyOps is pure: it threads the model through every op and returns the final model +
-        // a deterministic confirmation. The serializer renders the YAML from the mutated model.
-        const { model: nextModel, reply, changed } = applyOps(model, interfaceName, knownColumns, ops);
-        updateModel(() => nextModel);
+        // Apply ops inside the functional updater so they always thread through the LATEST
+        // committed model — not the stale closure snapshot — preventing concurrent-message races.
+        let reply = '';
+        let changed = false;
+        updateModel((currentModel) => {
+          const result = applyOps(currentModel, interfaceName, knownColumns, ops);
+          reply = result.reply;
+          changed = result.changed;
+          return result.model;
+        });
         setIsTyping(false);
-        // The model answers in two modes: EDIT (ops present) and CONVERSATION (no ops — greetings,
-        // questions). Show its reply when an edit applied OR when it's just chatting; fall back to
-        // the deterministic message only when an edit was attempted but nothing changed (dedupe,
-        // unknown column) or the model is down (regex fallback gives no reply).
         const isConversation = (ops?.length ?? 0) === 0;
         const text = modelReply && (changed || isConversation) ? modelReply : reply;
         setMessages((prev) => [...prev, { id: `msg-reply-${Date.now()}`, sender: 'assistant', text }]);
@@ -132,24 +140,40 @@ export default function InterfaceChatEditor({ interfaceName, iface }) {
 
   const chips = suggestionsFor(iface, knownColumns);
 
+  const fmtTime = (id) => {
+    const ts = parseInt(id?.split('-').pop(), 10);
+    if (!ts || Number.isNaN(ts)) return '';
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="chateditor">
       <div className="chateditor__messages">
         {messages.map((m) => (
           <div key={m.id} className={`chatbubble chatbubble--${m.sender}`}>
-            <div className={`chatbubble__avatar chatbubble__avatar--${m.sender}`}>
-              {m.sender === 'user' ? 'U' : 'AI'}
+            <div className={`chatbubble__avatar chatbubble__avatar--${m.sender}`} aria-hidden="true">
+              {m.sender === 'user' ? <User size={14} /> : <Bot size={14} />}
             </div>
-            <div className={`chatbubble__content chatbubble__content--${m.sender}`} style={{ whiteSpace: 'pre-line' }}>
-              {m.text}
+            <div className="chatbubble__body">
+              {m.sender === 'assistant'
+                ? <MiniMarkdown text={m.text} className="chatbubble__content chatbubble__content--assistant" />
+                : <div className="chatbubble__content chatbubble__content--user">{m.text}</div>
+              }
+              {m.id !== 'welcome' && (
+                <span className="chatbubble__time">{fmtTime(m.id)}</span>
+              )}
             </div>
           </div>
         ))}
         {isTyping && (
           <div className="chatbubble chatbubble--assistant">
-            <div className="chatbubble__avatar chatbubble__avatar--assistant">AI</div>
-            <div className="chatbubble__content chatbubble__content--assistant">
-              <div className="typing-indicator"><span></span><span></span><span></span></div>
+            <div className="chatbubble__avatar chatbubble__avatar--assistant" aria-hidden="true">
+              <Bot size={14} />
+            </div>
+            <div className="chatbubble__body">
+              <div className="chatbubble__content chatbubble__content--assistant">
+                <div className="typing-indicator"><span></span><span></span><span></span></div>
+              </div>
             </div>
           </div>
         )}
@@ -159,7 +183,9 @@ export default function InterfaceChatEditor({ interfaceName, iface }) {
       <div className="chateditor__inputarea">
         <div className="prompt-chips">
           {chips.map((c) => (
-            <button key={c} className="prompt-chip" onClick={() => handleSendMessage(c)}>+ {c}</button>
+            <button key={c} className="prompt-chip" onClick={() => handleSendMessage(c)}>
+              {c === 'explain' ? <><Sparkles size={11} /> explain</> : `+ ${c}`}
+            </button>
           ))}
         </div>
 
@@ -171,6 +197,7 @@ export default function InterfaceChatEditor({ interfaceName, iface }) {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             disabled={isTyping}
+            autoComplete="off"
           />
           <button type="submit" className="btn btn--accent" disabled={!inputValue.trim() || isTyping} style={{ padding: '10px 20px' }}>
             Send

@@ -5,8 +5,8 @@
 //  pipeline logic — so the LLM never authors YAML; it only picks an op and fills the args, and the
 //  serializer renders the YAML from the mutated model. Pure: returns a new model + a human reply.
 
-import { upsertSource, upsertInterface, createEmptyInterface } from './configModel.js';
-import { listAdd, listUpdate, setField } from './interfaceOps.js';
+import { upsertSource, upsertInterface, createEmptyInterface, removeSource } from './configModel.js';
+import { listAdd, listUpdate, listRemove, setField } from './interfaceOps.js';
 import { closest } from '../lib/fuzzy.js';
 
 const SOURCE_TYPES = ['file', 'mysql', 'api', 'rawdatastore', 'json'];
@@ -88,6 +88,64 @@ export function applyOp(model, interfaceName, knownColumns, op) {
         : { id: `out_${interfaceName}` };
       const it = setField(iface, 'output', { type: op.type, props });
       return { model: upsertInterface(model, interfaceName, it), reply: `✅ Output set to \`${op.type}\`. Check the YAML panel.`, changed: true };
+    }
+
+    case 'remove_column': {
+      const target = (op.name ?? op.col ?? '').trim();
+      if (!target) return noChange(model, 'Tell me which column to remove.');
+      const cols = iface.columns ?? [];
+      const idx = cols.findIndex((c) => c.src_col_name === target || c.dest_col_name === target);
+      if (idx < 0) {
+        const guess = closest(target, cols.map((c) => c.dest_col_name || c.src_col_name));
+        return noChange(model, guess ? `I don't see \`${target}\`. Did you mean \`${guess}\`?` : `Column \`${target}\` not found.`);
+      }
+      return { model: upsertInterface(model, interfaceName, listRemove(iface, 'columns', idx)), reply: `✅ Removed column \`${target}\`.`, changed: true };
+    }
+
+    case 'remove_transform': {
+      const steps = iface.pre_processing ?? [];
+      const targetType = (op.type ?? '').trim();
+      const targetIdx = typeof op.index === 'number' ? op.index : -1;
+      const idx = targetIdx >= 0 ? targetIdx : steps.findIndex((s) => s.type === targetType);
+      if (idx < 0 || idx >= steps.length) return noChange(model, `Couldn't find that transform to remove.`);
+      const removed = steps[idx];
+      return { model: upsertInterface(model, interfaceName, listRemove(iface, 'pre_processing', idx)), reply: `✅ Removed \`${removed.type}\` transform.`, changed: true };
+    }
+
+    case 'add_transform': {
+      const validTypes = ['merge', 'outer_join', 'mask', 'not_equals_filter', 'union', 'melt', 'aggregate', 'drop_duplicates', 'json_array_expander'];
+      const ttype = (op.type ?? '').trim();
+      if (!validTypes.includes(ttype)) return noChange(model, `I can add these transforms: ${validTypes.join(', ')}.`);
+      const it = listAdd(iface, 'pre_processing', { type: ttype });
+      return { model: upsertInterface(model, interfaceName, it), reply: `✅ Added a \`${ttype}\` transform. Open the graph editor to configure it.`, changed: true };
+    }
+
+    case 'remove_source': {
+      const srcId = (op.name ?? op.id ?? '').trim();
+      if (!srcId) return noChange(model, 'Tell me which source to remove.');
+      if (!model.sourcesById[srcId]) return noChange(model, `Source \`${srcId}\` doesn't exist.`);
+      let m = removeSource(model, srcId);
+      for (const [name, it] of Object.entries(m.interfacesByName)) {
+        const filtered = (it.sources ?? []).filter((s) => s !== srcId);
+        if (filtered.length !== (it.sources ?? []).length)
+          m = { ...m, interfacesByName: { ...m.interfacesByName, [name]: { ...it, sources: filtered } } };
+      }
+      return { model: m, reply: `✅ Removed source \`${srcId}\` from the registry and all interfaces.`, changed: true };
+    }
+
+    case 'explain': {
+      const srcs = (iface.sources ?? []).join(', ') || 'none';
+      const cols = (iface.columns ?? []).length;
+      const transforms = (iface.pre_processing ?? []).map((s) => s.type).join(', ') || 'none';
+      const out = iface.output?.type || 'not set';
+      return noChange(model,
+        `**Pipeline: ${interfaceName}**\n\n` +
+        `- **Sources:** ${srcs}\n` +
+        `- **Transforms:** ${transforms}\n` +
+        `- **Columns mapped:** ${cols}\n` +
+        `- **Output:** ${out}\n\n` +
+        `The YAML panel on the right shows the full serialized config.`
+      );
     }
 
     default:

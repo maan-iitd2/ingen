@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { useConfig } from '../../../state/ConfigContext.jsx';
+import { useGraphSelection } from '../../../state/GraphSelectionContext.jsx';
 import { colValAdd, colValUpdate, colValRemove } from '../../../models/interfaceOps.js';
 import {
   ALL_EXPECTATIONS, SEVERITY_OPTIONS, SEVERITY_ACTION, VALIDATION_ARG_HINTS,
@@ -14,6 +15,7 @@ const colLabel = (c) => c.dest_col_name || c.src_col_name || '(unnamed)';
 
 export default function ValidationsTab({ interfaceName, iface }) {
   const { updateInterface } = useConfig();
+  const { setSelectedNodeId } = useGraphSelection();
   const columns = iface.columns ?? [];
   const [target, setTarget] = useState(0);
   const [expectation, setExpectation] = useState(ALL_EXPECTATIONS[0]);
@@ -34,11 +36,16 @@ export default function ValidationsTab({ interfaceName, iface }) {
       </p>
 
       {columns.length === 0 ? (
-        <div className="emptyblock">Add columns first — validations attach to a column.</div>
+        <div className="emptyblock">
+          Add columns first — validations attach to a column.
+          <button className="btn btn--ghost btn--xs" style={{ marginLeft: 8 }} onClick={() => setSelectedNodeId('columns-node')}>
+            Go to Columns →
+          </button>
+        </div>
       ) : (
         <div className="addbar">
           <select className="field__input" value={target} onChange={(e) => setTarget(Number(e.target.value))}>
-            {columns.map((c, i) => <option key={i} value={i}>{colLabel(c)}</option>)}
+            {columns.map((c, i) => <option key={`${colLabel(c)}:${i}`} value={i}>{colLabel(c)}</option>)}
           </select>
           <select className="field__input field__input--wide" value={expectation} onChange={(e) => setExpectation(e.target.value)}>
             {ALL_EXPECTATIONS.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -66,7 +73,7 @@ export default function ValidationsTab({ interfaceName, iface }) {
                 {SEVERITY_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
               <span className="vrow__action muted">{SEVERITY_ACTION[v.severity ?? 'warning']}</span>
-              <button className="lctrls__btn lctrls__btn--del" onClick={() => apply((it) => colValRemove(it, ci, vi))}>✕</button>
+              <button className="lctrls__btn lctrls__btn--del" title="Remove validation" aria-label="Remove validation" onClick={() => apply((it) => colValRemove(it, ci, vi))}>✕</button>
             </div>
             <JsonField
               label="args"

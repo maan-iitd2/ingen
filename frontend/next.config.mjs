@@ -8,6 +8,17 @@ const nextConfig = {
     // lint debt in the source tree.
     ignoreDuringBuilds: true,
   },
+  // Proxy /api/* to the FastAPI backend so the browser never makes a cross-origin request.
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:8000/api/:path*',
+      },
+    ];
+  },
+  // Allow the Windsurf/Cascade browser preview proxy origin.
+  allowedDevOrigins: ['127.0.0.1'],
 };
 
 export default nextConfig;

@@ -15,6 +15,8 @@ import { HttpConfigAdapter } from './httpConfigAdapter.js';
 import { HttpValidationAdapter } from './httpValidationAdapter.js';
 import { HttpRunAdapter } from './httpRunAdapter.js';
 import { HttpHistoryAdapter } from './httpHistoryAdapter.js';
+import { MockChatAdapter } from './mockChatAdapter.js';
+import { HttpChatAdapter } from './httpChatAdapter.js';
 
 /**
  * @typedef {Object} ServiceSet
@@ -23,6 +25,7 @@ import { HttpHistoryAdapter } from './httpHistoryAdapter.js';
  * @property {import('../services/validationService.js').ValidationService} validation
  * @property {import('../services/runService.js').RunService} run
  * @property {import('../services/historyService.js').HistoryService} history
+ * @property {{ interpret: Function, warmup: Function }} chat
  */
 
 /**
@@ -39,6 +42,7 @@ export function buildServices(mode = ADAPTER_MODE.MOCK) {
         validation,
         run: new MockRunAdapter(validation), // run reuses the same validation service
         history: new MockHistoryAdapter(),
+        chat: new MockChatAdapter(),
       };
     }
     case ADAPTER_MODE.HTTP: {
@@ -51,6 +55,7 @@ export function buildServices(mode = ADAPTER_MODE.MOCK) {
         validation: new HttpValidationAdapter(client),
         run: new HttpRunAdapter(client),
         history: new HttpHistoryAdapter(client),
+        chat: new HttpChatAdapter(client),
       };
     }
     default:

@@ -15,12 +15,18 @@ from .runner import execute_run
 from .schema_validate import validate_yaml
 from .store import default_store
 from .files import save_and_parse
-from .chat import interpret, warmup
+# Chat backend: set INGEN_CHAT_BACKEND=hf to use local HuggingFace model (no Ollama needed).
+# Default is 'ollama' which requires a running Ollama server.
+_CHAT_BACKEND = os.environ.get("INGEN_CHAT_BACKEND", "ollama").lower()
+if _CHAT_BACKEND == "hf":
+    from .hf_chat import interpret, warmup
+else:
+    from .chat import interpret, warmup
 
 app = FastAPI(title="InGen Wrapper", version="1.0.0")
 
 # Allow the Next dev server (3000) — and the legacy Vite port — to call the API in development.
-_DEFAULT_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+_DEFAULT_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:5173,http://127.0.0.1:5173"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.environ.get("INGEN_CORS_ORIGINS", _DEFAULT_ORIGINS).split(","),

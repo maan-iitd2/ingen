@@ -1,16 +1,15 @@
 //  Per-source column cache (from file uploads). Kept OUT of the config model so it never leaks into
-//  the serialized YAML — the serializer dumps source objects verbatim. sessionStorage is enough:
-//  survives SPA navigation, clears on tab close.
-//  ponytail: sessionStorage map; move to the model only if columns must persist across reloads.
+//  the serialized YAML — the serializer dumps source objects verbatim. Uses localStorage so column
+//  names survive tab close and reload (previously sessionStorage caused silent autocomplete loss).
 
 const KEY = (sid) => `ingen:cols:${sid}`;
 
 export function setColumns(sourceId, columns) {
-  try { sessionStorage.setItem(KEY(sourceId), JSON.stringify(columns || [])); } catch { /* ignore */ }
+  try { localStorage.setItem(KEY(sourceId), JSON.stringify(columns || [])); } catch { /* ignore */ }
 }
 
 export function getColumns(sourceId) {
-  try { return JSON.parse(sessionStorage.getItem(KEY(sourceId))) || []; } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(KEY(sourceId))) || []; } catch { return []; }
 }
 
 /** Union of columns across a list of source ids (deduped, order-preserving). */

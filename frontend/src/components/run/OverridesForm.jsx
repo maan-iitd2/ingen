@@ -3,12 +3,15 @@
 
 import { useState } from 'react';
 import { useConfig } from '../../state/ConfigContext.jsx';
+import { JsonField } from '../../forms/fields/Fields.jsx';
 
 export default function OverridesForm({ running, onRun, onCancel }) {
   const { model } = useConfig();
   const allInterfaces = model?.interfaceOrder ?? [];
   const [runDate, setRunDate] = useState('');
   const [selected, setSelected] = useState(() => new Set(allInterfaces));
+  const [overrideParams, setOverrideParams] = useState(undefined);
+  const [queryParams, setQueryParams] = useState(undefined);
 
   // The model often loads AFTER this form first mounts (allInterfaces was []), which left every
   // interface unchecked and the Run button disabled. Re-seed the selection (default = all) whenever
@@ -30,7 +33,12 @@ export default function OverridesForm({ running, onRun, onCancel }) {
 
   const submit = () => {
     const interfaces = allInterfaces.filter((n) => selected.has(n));
-    onRun({ ...(runDate ? { run_date: runDate } : {}), interfaces });
+    onRun({
+      ...(runDate ? { run_date: runDate } : {}),
+      interfaces,
+      ...(overrideParams ? { override_params: overrideParams } : {}),
+      ...(queryParams ? { query_params: queryParams } : {}),
+    });
   };
 
   return (
@@ -51,6 +59,22 @@ export default function OverridesForm({ running, onRun, onCancel }) {
             ))}
           </div>
         </div>
+      </div>
+      <div className="overrides__row">
+        <JsonField
+          label="override_params"
+          help="JSON object of runtime overrides passed to every interface (e.g. source paths, thresholds)"
+          value={overrideParams}
+          onChange={setOverrideParams}
+          rows={2}
+        />
+        <JsonField
+          label="query_params"
+          help="JSON object of query parameters forwarded to API/DB sources"
+          value={queryParams}
+          onChange={setQueryParams}
+          rows={2}
+        />
       </div>
       <div className="overrides__actions">
         {running ? (

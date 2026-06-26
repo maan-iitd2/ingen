@@ -4,6 +4,8 @@
 //  a value + onChange and renders a labelled control. Kept deliberately plain (Phase focus is
 //  function, not polish). TagsField/JsonField handle the array/object cases the InGen YAML needs.
 
+import { useState, useEffect, useRef } from 'react';
+
 export function Field({ label, help, children }) {
   return (
     <label className="field">
@@ -108,10 +110,19 @@ export function TagsField({ label, help, value, onChange, placeholder }) {
  * cursor isn't disturbed by reformatting; commits only valid JSON. The buffer is the source of
  * truth while mounted — callers that need to reset it pass a distinct React `key`.
  */
-import { useState } from 'react';
 export function JsonField({ label, help, value, onChange, rows = 3 }) {
   const [text, setText] = useState(() => (value === undefined ? '' : JSON.stringify(value, null, 2)));
   const [error, setError] = useState(false);
+  const lastCommitted = useRef(value);
+
+  // Sync buffer when value changes externally (e.g. undo/redo) — only when the current
+  // buffer is already valid (not mid-typing) and the new value differs from what we last wrote.
+  useEffect(() => {
+    if (value === lastCommitted.current) return;
+    lastCommitted.current = value;
+    setText(value === undefined ? '' : JSON.stringify(value, null, 2));
+    setError(false);
+  }, [value]);
 
   return (
     <Field label={label} help={help || 'JSON'}>
@@ -122,8 +133,8 @@ export function JsonField({ label, help, value, onChange, rows = 3 }) {
         onChange={(e) => {
           const t = e.target.value;
           setText(t);
-          if (t.trim() === '') { setError(false); onChange(undefined); return; }
-          try { onChange(JSON.parse(t)); setError(false); } catch { setError(true); }
+          if (t.trim() === '') { setError(false); lastCommitted.current = undefined; onChange(undefined); return; }
+          try { const parsed = JSON.parse(t); lastCommitted.current = parsed; onChange(parsed); setError(false); } catch { setError(true); }
         }}
       />
       {error && <span className="field__help field__help--err">Invalid JSON — not saved</span>}

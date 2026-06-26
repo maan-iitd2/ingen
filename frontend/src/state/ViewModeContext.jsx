@@ -1,6 +1,6 @@
 //  InGen Studio — ViewModeContext
 //
-//  Shared state for the active editor view mode (Manual / Graph / Chat). Lives above the
+//  Shared state for the active editor view mode (Graph / Chat). Lives above the
 //  workspace so both the AppShell brand bar (where the switcher lives) and the editor/sidebar
 //  (which render mode-specific content) can read and write the same value.
 

@@ -179,7 +179,7 @@ export default function ColumnsTab({ interfaceName, iface }) {
         <div className="colcard-list">
           {columns.map((col, i) => (
             <ColumnCard
-              key={i}
+              key={`${col.src_col_name ?? ''}:${col.dest_col_name ?? ''}:${i}`}
               col={col}
               index={i}
               count={columns.length}

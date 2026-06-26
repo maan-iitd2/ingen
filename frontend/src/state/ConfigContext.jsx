@@ -15,6 +15,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { getServices } from '../services/index.js';
 import { modelToYaml } from '../serializers/index.js';
 import { validateConfigModel, upsertInterface } from '../models/configModel.js';
+import { useModelHistory } from './useModelHistory.js';
 
 /**
  * @typedef {Object} ConfigContextValue
@@ -24,6 +25,10 @@ import { validateConfigModel, upsertInterface } from '../models/configModel.js';
  * @property {import('../models/types.js').ConfigIssue[]} issues
  * @property {(updater: (m: any) => any) => void} updateModel
  * @property {(name: string, updater: (iface: any) => any) => void} updateInterface
+ * @property {() => void} undo
+ * @property {() => void} redo
+ * @property {boolean} canUndo
+ * @property {boolean} canRedo
  */
 
 const ConfigContext = createContext(/** @type {ConfigContextValue} */ (null));
@@ -34,6 +39,7 @@ export function ConfigProvider({ configId, children }) {
   const [model, setModel] = useState(null);
   const [status, setStatus] = useState('loading');
   const saveTimer = useRef(null);
+  const history = useModelHistory(null);
   // The last model reference that has been persisted. Drives the autosave decision (model !==
   // savedRef → there are unsaved edits) WITHOUT coupling it to `status`, which is what caused the
   // earlier data-loss race (a save resolving could cancel a pending save of a newer edit).
@@ -62,11 +68,15 @@ export function ConfigProvider({ configId, children }) {
   // Keep modelRef in lockstep with the rendered model.
   useEffect(() => { modelRef.current = model; }, [model]);
 
-  // Apply an immutable update and mark dirty.
+  // Apply an immutable update and mark dirty. Pushes a history snapshot BEFORE the mutation.
   const updateModel = useCallback((updater) => {
-    setModel((prev) => (prev ? updater(prev) : prev));
+    setModel((prev) => {
+      if (!prev) return prev;
+      history.pushHistory(prev);
+      return updater(prev);
+    });
     setStatus('dirty');
-  }, []);
+  }, [history]);
 
   // Convenience for the common case of editing one interface.
   const updateInterface = useCallback((name, updater) => {
@@ -103,9 +113,38 @@ export function ConfigProvider({ configId, children }) {
   const yaml = useMemo(() => (model ? modelToYaml(model) : ''), [model]);
   const issues = useMemo(() => (model ? validateConfigModel(model) : []), [model]);
 
+  const undo = useCallback(() => {
+    history.undo(modelRef.current, (m) => { setModel(m); setStatus('dirty'); });
+  }, [history]);
+
+  const redo = useCallback(() => {
+    history.redo(modelRef.current, (m) => { setModel(m); setStatus('dirty'); });
+  }, [history]);
+
+  // Flush the pending autosave immediately (e.g. triggered by Ctrl+S).
+  const saveNow = useCallback(async () => {
+    const m = modelRef.current;
+    if (!m || m === savedRef.current) return;
+    clearTimeout(saveTimer.current);
+    setStatus('saving');
+    try {
+      await getServices().config.update(m);
+      savedRef.current = m;
+      if (modelRef.current === m) setStatus('saved');
+    } catch {
+      setStatus('error');
+    }
+  }, []);
+
   const value = useMemo(
-    () => ({ model, status, yaml, issues, updateModel, updateInterface }),
-    [model, status, yaml, issues, updateModel, updateInterface],
+    () => ({
+      model, status, yaml, issues,
+      updateModel, updateInterface,
+      undo, redo, saveNow,
+      canUndo: history.canUndo,
+      canRedo: history.canRedo,
+    }),
+    [model, status, yaml, issues, updateModel, updateInterface, undo, redo, saveNow, history.canUndo, history.canRedo],
   );
 
   return <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>;

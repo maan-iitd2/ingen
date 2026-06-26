@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   Database, FileOutput, Filter, ArrowRightLeft, ShieldCheck,
@@ -20,9 +20,11 @@ import { useChatSession } from '../../state/ChatSessionContext.jsx';
 import { useGraphSelection } from '../../state/GraphSelectionContext.jsx';
 import { getSessions } from '../../services/chatHistoryService.js';
 import { buildPalette } from './navPalette.js';
-import { upsertSource } from '../../models/configModel.js';
+import { upsertSource, upsertInterface, createEmptyInterface } from '../../models/configModel.js';
 import { listAdd, setField } from '../../models/interfaceOps.js';
 import { setColumns } from '../../lib/columnStore.js';
+import InterfaceManager from '../editor/InterfaceManager.jsx';
+import SourceActionDialog from '../common/SourceActionDialog.jsx';
 
 // ─── inFlow Mode: Node Palette (draw.io-inspired) ───
 
@@ -70,10 +72,12 @@ const SOURCE_DEFAULTS = {
 function GraphPalette() {
   const { model, updateModel, updateInterface } = useConfig();
   const { setSelectedNodeId } = useGraphSelection();
-  const { interfaceName } = useParams();
+  const { interfaceName, configId } = useParams();
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState({});
   const [tip, setTip] = useState(null); // { node, note, x, y }
+  const [pendingSourceAction, setPendingSourceAction] = useState(null); // { sid } | null
 
   const onDragStart = (event, nodeData) => {
     event.dataTransfer.setData('application/reactflow', JSON.stringify(nodeData));
@@ -97,13 +101,53 @@ function GraphPalette() {
     if (!interfaceName || !subtype) return;
     const id = nextSourceId(model);
     updateModel((m) => upsertSource(m, SOURCE_DEFAULTS[subtype](id)));
+    setColumns(id, []);
+    const currentSources = model.interfacesByName?.[interfaceName]?.sources ?? [];
+    if (currentSources.length > 0) {
+      setPendingSourceAction({ sid: id });
+    } else {
+      updateInterface(interfaceName, (it) => {
+        const cur = it.sources ?? [];
+        return cur.includes(id) ? it : { ...it, sources: [...cur, id] };
+      });
+      setSelectedNodeId(`src-${id}`);
+    }
+  };
+
+  const handleNewInterface = useCallback(() => {
+    if (!pendingSourceAction) return;
+    const { sid } = pendingSourceAction;
+    const newName = `${sid}_pipeline`;
+    const finalName = model.interfacesByName[newName]
+      ? `${newName}_${Date.now()}`
+      : newName;
+    updateModel((m) =>
+      upsertInterface(m, finalName, {
+        ...createEmptyInterface(),
+        sources: [sid],
+      }),
+    );
+    setPendingSourceAction(null);
+    if (configId) {
+      router.push(`/configs/${configId}/interfaces/${encodeURIComponent(finalName)}`);
+    }
+  }, [pendingSourceAction, model, updateModel, configId, router]);
+
+  const handleMergeSource = useCallback(() => {
+    if (!pendingSourceAction) return;
+    const { sid } = pendingSourceAction;
     updateInterface(interfaceName, (it) => {
       const cur = it.sources ?? [];
-      return cur.includes(id) ? it : { ...it, sources: [...cur, id] };
+      const newSources = cur.includes(sid) ? cur : [...cur, sid];
+      const newPreProcessing = [
+        ...(it.pre_processing ?? []),
+        { type: 'merge', source: sid, merge_type: 'inner', left_key: '', right_key: '' },
+      ];
+      return { ...it, sources: newSources, pre_processing: newPreProcessing };
     });
-    setColumns(id, []);
-    setSelectedNodeId(`src-${id}`);
-  };
+    setPendingSourceAction(null);
+    setSelectedNodeId(`src-${sid}`);
+  }, [pendingSourceAction, updateInterface, interfaceName, setSelectedNodeId]);
 
   const addOutputNode = (subtype) => {
     if (!interfaceName || !subtype) return;
@@ -219,6 +263,14 @@ function GraphPalette() {
           )}
         </div>
       )}
+
+      <SourceActionDialog
+        open={Boolean(pendingSourceAction)}
+        sourceId={pendingSourceAction?.sid ?? ''}
+        onNewInterface={handleNewInterface}
+        onMerge={handleMergeSource}
+        onCancel={() => setPendingSourceAction(null)}
+      />
     </div>
   );
 }
@@ -254,15 +306,17 @@ function ChatHistory({ configId }) {
       </button>
       <ul className="navrail-chat__sessions">
         {allSessions.map((s) => (
-          <li
-            key={s.id}
-            className={`navrail-chat__session${s.id === activeSessionId ? ' navrail-chat__session--active' : ''}`}
-            onClick={() => openSession(s)}
-          >
-            <span className="navrail-chat__session-preview">{s.preview}</span>
-            <span className="navrail-chat__session-time">
-              {new Date(s.createdAt).toLocaleDateString()} · {s.interfaceName}
-            </span>
+          <li key={s.id}>
+            <button
+              className={`navrail-chat__session${s.id === activeSessionId ? ' navrail-chat__session--active' : ''}`}
+              onClick={() => openSession(s)}
+              aria-label={`Open chat: ${s.preview}`}
+            >
+              <span className="navrail-chat__session-preview">{s.preview}</span>
+              <span className="navrail-chat__session-time">
+                {new Date(s.createdAt).toLocaleDateString()} · {s.interfaceName}
+              </span>
+            </button>
           </li>
         ))}
         {allSessions.length === 0 && (
@@ -286,6 +340,7 @@ export default function NavRail({ configId, collapsed, onToggleCollapse }) {
       className={`navrail${collapsed ? ' navrail--collapsed' : ''}`}
       aria-label="Workspace navigation"
     >
+      {!collapsed && <InterfaceManager configId={configId} />}
       {viewMode === 'graph' && <GraphPalette />}
       {viewMode === 'chat' && <ChatHistory configId={configId} />}
 

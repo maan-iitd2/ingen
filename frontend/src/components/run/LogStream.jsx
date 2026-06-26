@@ -16,7 +16,7 @@ export default function LogStream({ events }) {
   return (
     <div className="logstream">
       {logs.map((e, i) => (
-        <div key={i} className={`logline logline--${e.level ?? 'info'}`}>
+        <div key={e.ts ? `${e.ts}-${i}` : i} className={`logline logline--${e.level ?? 'info'}`}>
           <span className="logline__ts mono">{timeOf(e.ts)}</span>
           <span className={`logline__lvl logline__lvl--${e.level ?? 'info'}`}>{(e.level ?? 'info').toUpperCase()}</span>
           {e.interface && <span className="logline__scope mono">{e.interface}{e.stage ? `/${e.stage}` : ''}</span>}

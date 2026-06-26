@@ -2,7 +2,7 @@
 
 //  InGen Studio — AppShell
 //
-//  Outermost frame: brand bar with the Manual/Graph/Chat view switcher at center, config name +
+//  Outermost frame: brand bar with the Graph/Chat view switcher at center, config name +
 //  status on the right. The view mode is shared via ViewModeContext so the editor and sidebar
 //  can read it. Workspace-specific controls (YAML toggle, Run) are also here.
 //

@@ -159,8 +159,13 @@ function Dropzone({ busy, upload, onFile }) {
       {upload && upload.rows.length > 0 && (
         <div className="dropzone__preview">
           <table>
+            {upload.rows.length > 1 && (
+              <thead>
+                <tr>{upload.rows[0].slice(0, 6).map((cell, j) => <th key={j}>{cell}</th>)}</tr>
+              </thead>
+            )}
             <tbody>
-              {upload.rows.slice(0, 5).map((row, i) => (
+              {upload.rows.slice(upload.rows.length > 1 ? 1 : 0, 6).map((row, i) => (
                 <tr key={i}>{row.slice(0, 6).map((cell, j) => <td key={j}>{cell}</td>)}</tr>
               ))}
             </tbody>

@@ -3,14 +3,16 @@
 //  definition AND add it to the interface in a single action — no need to navigate to the separate
 //  Sources registry page first.
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Plus, Database, FileText, Globe, Braces, HardDrive, ChevronDown, ChevronUp, Trash2, GripVertical } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { Plus, Database, FileText, Globe, Braces, HardDrive, Trash2 } from 'lucide-react';
 import { useConfig } from '../../../state/ConfigContext.jsx';
-import { upsertSource } from '../../../models/configModel.js';
+import { upsertSource, removeSource, upsertInterface, createEmptyInterface } from '../../../models/configModel.js';
 import { SOURCE_TYPES } from '../../../models/constants.js';
 import ListControls from '../../common/ListControls.jsx';
 import { listAdd, listRemove, listMove } from '../../../models/interfaceOps.js';
+import ConfirmDialog from '../../common/ConfirmDialog.jsx';
+import SourceActionDialog from '../../common/SourceActionDialog.jsx';
 
 const TYPE_OPTIONS = Object.values(SOURCE_TYPES);
 
@@ -36,6 +38,8 @@ function summarize(src) {
 
 export default function SourcesTab({ interfaceName, iface }) {
   const { model, updateModel, updateInterface } = useConfig();
+  const router = useRouter();
+  const { configId } = useParams() || {};
   const ids = iface.sources ?? [];
   const available = model.sourceOrder.filter((id) => !ids.includes(id));
 
@@ -47,10 +51,32 @@ export default function SourcesTab({ interfaceName, iface }) {
   const [newId, setNewId] = useState('');
   const [newType, setNewType] = useState('file');
 
+  // Delete from registry
+  const [confirmDelSrc, setConfirmDelSrc] = useState(null); // sourceId | null
+
+  // Source action dialog (new interface vs merge)
+  const [pendingSourceAction, setPendingSourceAction] = useState(null); // { sid, isNew? } | null
+
   const idTaken = Boolean(model.sourcesById[newId.trim()]);
   const canCreate = newId.trim().length > 0 && !idTaken;
 
   const apply = (fn) => updateInterface(interfaceName, fn);
+
+  // Delete source from global registry AND remove it from ALL interfaces that reference it.
+  const deleteFromRegistry = (srcId) => {
+    updateModel((m) => {
+      let next = removeSource(m, srcId);
+      // Strip from every interface's sources array.
+      for (const [name, it] of Object.entries(next.interfacesByName)) {
+        const filtered = (it.sources ?? []).filter((s) => s !== srcId);
+        if (filtered.length !== (it.sources ?? []).length) {
+          next = { ...next, interfacesByName: { ...next.interfacesByName, [name]: { ...it, sources: filtered } } };
+        }
+      }
+      return next;
+    });
+    setConfirmDelSrc(null);
+  };
 
   // Create a new source in the registry AND add it to this interface
   const createAndAdd = () => {
@@ -58,7 +84,14 @@ export default function SourcesTab({ interfaceName, iface }) {
     if (!id || model.sourcesById[id]) return;
     // 1. Create in registry
     updateModel((m) => upsertSource(m, { id, type: newType }));
-    // 2. Add to this interface (need to do it after model update via a chained call)
+    // 2. If interface already has sources, show choice dialog
+    if (ids.length > 0) {
+      setPendingSourceAction({ sid: id });
+      setNewId('');
+      setShowCreate(false);
+      return;
+    }
+    // 3. Otherwise add directly
     apply((it) => listAdd(it, 'sources', id));
     setNewId('');
     setShowCreate(false);
@@ -67,15 +100,55 @@ export default function SourcesTab({ interfaceName, iface }) {
   // Add existing source
   const addExisting = () => {
     if (!pick) return;
+    if (ids.length > 0) {
+      setPendingSourceAction({ sid: pick });
+      setPick('');
+      return;
+    }
     apply((it) => listAdd(it, 'sources', pick));
     setPick('');
   };
 
+  // Source action dialog handlers
+  const handleNewInterface = useCallback(() => {
+    if (!pendingSourceAction) return;
+    const { sid } = pendingSourceAction;
+    const newName = `${sid}_pipeline`;
+    const finalName = model.interfacesByName[newName]
+      ? `${newName}_${Date.now()}`
+      : newName;
+    updateModel((m) =>
+      upsertInterface(m, finalName, {
+        ...createEmptyInterface(),
+        sources: [sid],
+      }),
+    );
+    setPendingSourceAction(null);
+    if (configId) {
+      router.push(`/configs/${configId}/interfaces/${encodeURIComponent(finalName)}`);
+    }
+  }, [pendingSourceAction, model, updateModel, configId, router]);
+
+  const handleMergeSource = useCallback(() => {
+    if (!pendingSourceAction) return;
+    const { sid } = pendingSourceAction;
+    apply((it) => {
+      const cur = it.sources ?? [];
+      const newSources = cur.includes(sid) ? cur : [...cur, sid];
+      const newPreProcessing = [
+        ...(it.pre_processing ?? []),
+        { type: 'merge', source: sid, merge_type: 'inner', left_key: '', right_key: '' },
+      ];
+      return { ...it, sources: newSources, pre_processing: newPreProcessing };
+    });
+    setPendingSourceAction(null);
+  }, [pendingSourceAction, apply]);
+
   return (
     <div className="tabcontent">
       <p className="tabcontent__hint">
-        Ordered source inputs (row 1 is the pipeline base). Manage all definitions in the{' '}
-        <Link href={`/configs/${model.meta.id}/sources`}>Sources registry</Link>.
+        Ordered source inputs — row 1 is the pipeline base input. Use the trash icon to permanently
+        delete a source from the registry (removes it from all interfaces).
       </p>
 
       {/* ── Source cards ── */}
@@ -100,12 +173,21 @@ export default function SourcesTab({ interfaceName, iface }) {
                     </span>
                   </div>
                 </div>
-                <ListControls
-                  index={i}
-                  count={ids.length}
-                  onMove={(d) => apply((it) => listMove(it, 'sources', i, d))}
-                  onRemove={() => apply((it) => listRemove(it, 'sources', i))}
-                />
+                <div className="src-card__controls">
+                  <ListControls
+                    index={i}
+                    count={ids.length}
+                    onMove={(d) => apply((it) => listMove(it, 'sources', i, d))}
+                    onRemove={() => apply((it) => listRemove(it, 'sources', i))}
+                  />
+                  <button
+                    className="src-card__del-btn"
+                    title="Delete from registry (removes from all interfaces)"
+                    onClick={() => setConfirmDelSrc(id)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -196,6 +278,24 @@ export default function SourcesTab({ interfaceName, iface }) {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(confirmDelSrc)}
+        title="Delete source"
+        message={`Delete source "${confirmDelSrc}" from the registry? It will be removed from every interface that references it. This can't be undone.`}
+        confirmLabel="Delete source"
+        danger
+        onConfirm={() => deleteFromRegistry(confirmDelSrc)}
+        onCancel={() => setConfirmDelSrc(null)}
+      />
+
+      <SourceActionDialog
+        open={Boolean(pendingSourceAction)}
+        sourceId={pendingSourceAction?.sid ?? ''}
+        onNewInterface={handleNewInterface}
+        onMerge={handleMergeSource}
+        onCancel={() => setPendingSourceAction(null)}
+      />
     </div>
   );
 }

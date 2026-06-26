@@ -120,6 +120,25 @@ export function removeInterface(model, name) {
 }
 
 /**
+ * Rename an interface (moves the key in interfacesByName + updates interfaceOrder + any references
+ * inside rawdatastore source ids are NOT rewritten — callers must do that separately if needed).
+ * @param {ConfigModel} model
+ * @param {string} oldName
+ * @param {string} newName
+ * @returns {ConfigModel}
+ */
+export function renameInterface(model, oldName, newName) {
+  if (!newName || oldName === newName) return model;
+  if (model.interfacesByName[newName]) throw new Error(`Interface "${newName}" already exists`);
+  const next = touch(model);
+  const data = model.interfacesByName[oldName];
+  next.interfacesByName = { ...model.interfacesByName, [newName]: data };
+  delete next.interfacesByName[oldName];
+  next.interfaceOrder = model.interfaceOrder.map((n) => (n === oldName ? newName : n));
+  return next;
+}
+
+/**
  * Reorder interfaces. Pass the full new order (must be a permutation of existing names).
  * @param {ConfigModel} model
  * @param {string[]} newOrder

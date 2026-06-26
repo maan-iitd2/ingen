@@ -25,7 +25,7 @@ export default function ValidationResults({ report }) {
           </thead>
           <tbody>
             {results.map((r, i) => (
-              <tr key={i}>
+              <tr key={`${r.interface}:${r.column}:${r.expectation}:${i}`}>
                 <td className="mono">{r.interface}</td>
                 <td>{r.column}</td>
                 <td className="mono">{r.expectation}</td>

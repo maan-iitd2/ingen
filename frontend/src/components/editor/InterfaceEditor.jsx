@@ -1,9 +1,8 @@
 //  InGen Studio — InterfaceEditor (PRIMARY screen)
 //
-//  Edits one interface at a time. Supports three view modes via ViewModeContext:
-//    - Manual: The standard tabbed forms (Phase 1)
-//    - Graph: React Flow visual pipeline editor (Phase 2)
-//    - Chat: ChatGPT-like natural language conversational editor (Phase 3)
+//  Edits one interface at a time. Supports two view modes via ViewModeContext:
+//    - Graph (inFlow): React Flow visual pipeline editor
+//    - Chat (inChat): ChatGPT-like natural language conversational editor
 //  The view switcher is in the brand bar — this component just reads the mode.
 
 import { useParams } from 'next/navigation';

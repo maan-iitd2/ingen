@@ -16,10 +16,26 @@ let booted = false;
 
 function migrateIfStale() {
   if (localStorage.getItem(VERSION_KEY) === DATA_VERSION) return; // up to date — keep saved work
-  // Schema changed (or first run): drop any prior namespace data, then stamp the current version.
-  Object.keys(localStorage)
-    .filter((k) => k.startsWith(NS + ':'))
-    .forEach((k) => localStorage.removeItem(k));
+
+  const oldVersion = localStorage.getItem(VERSION_KEY) ?? 'none';
+  const staleKeys = Object.keys(localStorage).filter((k) => k.startsWith(NS + ':'));
+
+  // Snapshot old data into a backup key before wiping so a future recovery path is possible.
+  if (staleKeys.length > 0) {
+    const backup = {};
+    staleKeys.forEach((k) => { backup[k] = localStorage.getItem(k); });
+    try {
+      localStorage.setItem(`${NS}:backup:${oldVersion}`, JSON.stringify(backup));
+    } catch {
+      // Storage full — skip backup silently, still need to migrate.
+    }
+    console.warn(
+      `[InGen] Data schema changed (${oldVersion} → ${DATA_VERSION}). ` +
+      `${staleKeys.length} key(s) cleared. Backup saved to "${NS}:backup:${oldVersion}".`
+    );
+  }
+
+  staleKeys.forEach((k) => localStorage.removeItem(k));
   localStorage.setItem(VERSION_KEY, DATA_VERSION);
 }
 

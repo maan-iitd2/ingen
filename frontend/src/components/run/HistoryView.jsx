@@ -3,10 +3,11 @@
 //  Lists past RunRecords for this config from HistoryService (localStorage-backed). Expand a run to
 //  see its validation results and per-stage outcome. Read-only audit surface.
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useConfig } from '../../state/ConfigContext.jsx';
 import { getServices } from '../../services/index.js';
 import ValidationResults from './ValidationResults.jsx';
+import ConfirmDialog from '../common/ConfirmDialog.jsx';
 
 const STATUS_PILL = { success: 'pill--ok', partial: 'pill--warn', failed: 'pill--err' };
 const fmt = (iso) => (iso ? iso.replace('T', ' ').slice(0, 19) : '');
@@ -16,23 +17,22 @@ export default function HistoryView() {
   const configId = model?.meta.id;
   const [runs, setRuns] = useState(null);
   const [openId, setOpenId] = useState(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const load = useCallback(async () => {
-    if (!configId) return;
-    setRuns(await getServices().history.list(configId));
-  }, [configId]);
-
-  // Initial load: fetch in a callback (not a synchronous effect setState).
   useEffect(() => {
     let alive = true;
     if (configId) getServices().history.list(configId).then((r) => { if (alive) setRuns(r); });
     return () => { alive = false; };
-  }, [configId]);
+  }, [configId, refreshKey]);
 
-  const clear = async () => {
+  const refresh = () => setRefreshKey((k) => k + 1);
+
+  const doClear = async () => {
     await getServices().history.clear(configId);
     setOpenId(null);
-    load();
+    setConfirmClear(false);
+    refresh();
   };
 
   return (
@@ -43,8 +43,8 @@ export default function HistoryView() {
           <p className="editor__subtitle">Past simulated runs for this config (stored locally).</p>
         </div>
         <div className="wtopbar__right">
-          <button className="btn btn--ghost-dark" onClick={load}>Refresh</button>
-          <button className="btn btn--danger" onClick={clear} disabled={!runs?.length}>Clear</button>
+          <button className="btn btn--ghost-dark" onClick={refresh}>Refresh</button>
+          <button className="btn btn--danger" onClick={() => setConfirmClear(true)} disabled={!runs?.length}>Clear</button>
         </div>
       </header>
 
@@ -70,7 +70,7 @@ export default function HistoryView() {
                   <div className="histcard__body">
                     <div className="histcard__stages">
                       {r.stages.map((s, i) => (
-                        <span key={i} className={`stagetile stagetile--${s.status === 'ok' ? 'ok' : s.status}`}>
+                        <span key={`${s.interface}/${s.stage}`} className={`stagetile stagetile--${s.status === 'ok' ? 'ok' : s.status}`}>
                           {s.interface}/{s.stage}
                         </span>
                       ))}
@@ -83,6 +83,16 @@ export default function HistoryView() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear history"
+        message="Delete all run records for this config? This can't be undone."
+        confirmLabel="Clear all"
+        danger
+        onConfirm={doClear}
+        onCancel={() => setConfirmClear(false)}
+      />
     </section>
   );
 }

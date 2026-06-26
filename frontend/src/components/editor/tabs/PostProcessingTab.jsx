@@ -34,7 +34,7 @@ export default function PostProcessingTab({ interfaceName, iface }) {
 
       <ol className="stepper">
         {steps.map((step, i) => (
-          <li key={i} className="stepper__item stepper__item--editable">
+          <li key={`${step.type}:${i}`} className="stepper__item stepper__item--editable">
             <span className="stepper__num">{i + 1}</span>
             <div className="stepper__body">
               <div className="stepper__row">

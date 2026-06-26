@@ -3,11 +3,11 @@
 //  Thin fetch wrapper shared by the Http* adapters. Base URL comes from NEXT_PUBLIC_API_BASE_URL
 //  (defaults to the local FastAPI wrapper). Surfaces the backend's `detail` message on errors.
 
-const DEFAULT_BASE = 'http://localhost:8000';
+const DEFAULT_BASE = '';
 
 export class HttpClient {
   constructor(baseUrl) {
-    this.baseUrl = (baseUrl ?? DEFAULT_BASE).replace(/\/$/, '');
+    this.baseUrl = (baseUrl != null && baseUrl !== '' ? baseUrl : DEFAULT_BASE).replace(/\/$/, '');
   }
 
   async request(method, path, body) {
