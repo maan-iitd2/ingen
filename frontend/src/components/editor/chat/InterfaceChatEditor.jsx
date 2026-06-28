@@ -24,6 +24,7 @@ function welcomeMessage(interfaceName) {
 
 // Regex fallback — used when the local model is unavailable. Returns the SAME ops shape the backend
 // produces, so a single applier handles both paths.
+// Op authority: frontend/src/models/applyIntent.js — only emit ops it implements.
 function regexOps(text) {
   const t = text.trim();
   let m;
@@ -36,6 +37,7 @@ function regexOps(text) {
   if ((m = t.match(/^add\s+source\s+(\w+)\s+(\w+)/i))) return [{ op: 'add_source', name: m[1], type: m[2].toLowerCase() }];
   if ((m = t.match(/^remove\s+source\s+(\S+)/i))) return [{ op: 'remove_source', name: m[1] }];
   if ((m = t.match(/^add\s+transform\s+(\w+)/i))) return [{ op: 'add_transform', type: m[1].toLowerCase() }];
+  if ((m = t.match(/^remove\s+transform\s+(\w+)/i))) return [{ op: 'remove_transform', type: m[1].toLowerCase() }];
   if ((m = t.match(/^filter\s+(\w+)\s+(.+)/i))) return [{ op: 'add_filter', col: m[1], val: m[2] }];
   if ((m = t.match(/^change\s+output\s+to\s+(\w+)/i))) return [{ op: 'set_output', type: m[1].toLowerCase() }];
   if (/^(explain|describe|what.*(pipeline|interface))/i.test(t)) return [{ op: 'explain' }];
