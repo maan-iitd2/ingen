@@ -13,6 +13,8 @@ import pandas as pd
 DATA_DIR = Path("Data")
 CACHE_DIR = DATA_DIR / ".cache"
 PREVIEW_ROWS = 10
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB — trusted-dev guard against accidental OOM
+ALLOWED_SUFFIXES = {".csv", ".tsv", ".txt", ".xlsx", ".xls", ".json"}
 
 
 def _parse(path: Path, n=PREVIEW_ROWS):
@@ -23,7 +25,7 @@ def _parse(path: Path, n=PREVIEW_ROWS):
     elif suffix == ".json":
         df = pd.read_json(path).head(n)
     else:
-        df = pd.read_csv(path, nrows=n)
+        df = pd.read_csv(path, nrows=n, sep=None, engine="python")  # sep=None → csv.Sniffer auto-detects , ; \t |
     cols = [str(c) for c in df.columns]
     preview = df.fillna("").astype(str).values.tolist()
     return cols, preview
@@ -32,6 +34,11 @@ def _parse(path: Path, n=PREVIEW_ROWS):
 def save_and_parse(filename: str, content: bytes) -> dict:
     """Persist to Data/<filename>, parse, cache by content hash. Returns
     {file_path, columns, preview, cached}."""
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise ValueError(f"File too large ({len(content)} bytes; max {MAX_UPLOAD_BYTES}).")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in ALLOWED_SUFFIXES:
+        raise ValueError(f"Unsupported file type '{suffix}'. Allowed: {', '.join(sorted(ALLOWED_SUFFIXES))}.")
     DATA_DIR.mkdir(exist_ok=True)
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -15,13 +15,8 @@ from .runner import execute_run
 from .schema_validate import validate_yaml
 from .store import default_store
 from .files import save_and_parse
-# Chat backend: set INGEN_CHAT_BACKEND=hf to use local HuggingFace model (no Ollama needed).
-# Default is 'ollama' which requires a running Ollama server.
-_CHAT_BACKEND = os.environ.get("INGEN_CHAT_BACKEND", "ollama").lower()
-if _CHAT_BACKEND == "hf":
-    from .hf_chat import interpret, warmup
-else:
-    from .chat import interpret, warmup
+from .columns import source_columns
+from .chat import interpret, warmup  # inChat: local HuggingFace model
 
 app = FastAPI(title="InGen Wrapper", version="1.0.0")
 
@@ -60,7 +55,23 @@ def health():
 @app.post("/api/files/upload")
 async def upload_file(file: UploadFile = File(...)):
     content = await file.read()
-    return save_and_parse(file.filename, content)
+    try:
+        return save_and_parse(file.filename, content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+class ColumnsRequest(BaseModel):
+    source: dict
+    run_date: str | None = None
+
+
+@app.post("/api/sources/columns")
+def fetch_source_columns(req: ColumnsRequest):
+    try:
+        return source_columns(req.source, req.run_date)
+    except Exception as exc:  # missing file, bad query, auth, unknown type → client shows the message
+        raise HTTPException(status_code=400, detail=f"Couldn't read columns: {exc}")
 
 
 class ChatRequest(BaseModel):
@@ -74,7 +85,7 @@ class ChatRequest(BaseModel):
 def chat(req: ChatRequest):
     try:
         return interpret(req.message, req.columns or [], req.yaml or "", req.interface or "")  # {"reply", "ops"}
-    except Exception as exc:  # Ollama down / model missing → client falls back to its own parser.
+    except Exception as exc:  # model load/inference failed → client falls back to its own parser.
         raise HTTPException(status_code=502, detail=f"LLM unavailable: {exc}")
 
 
