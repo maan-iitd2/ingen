@@ -6,7 +6,11 @@
 
 import yaml
 
-_VALID_SOURCE_TYPES = {"file", "mysql", "api", "rawdatastore", "json"}
+from ingen.data_source.data_source_type import DataSourceType
+
+# Source of truth: ingen's own enum. Adding a source type to ingen makes this validator accept it
+# automatically — no parallel list to keep in sync. (Killed the drift the code review flagged.)
+_VALID_SOURCE_TYPES = {e.value for e in DataSourceType}
 
 
 def validate_yaml(yaml_text: str) -> dict:
@@ -44,20 +48,13 @@ def validate_yaml(yaml_text: str) -> dict:
                            "message": f"Source '{s['id']}' has unsupported type '{s.get('type')}'.",
                            "path": f"sources.{s['id']}"})
 
-    # rawdatastore producers seen so far, in declaration order (order is significant in InGen).
-    produced = set()
     for name, iface in interfaces.items():
         iface = iface or {}
         for sid in iface.get("sources", []) or []:
-            if sid not in source_ids and sid not in produced:
+            if sid not in source_ids:
                 issues.append({"level": "error", "code": "UNKNOWN_SOURCE_REF",
                                "message": f"Interface '{name}' references undefined source '{sid}'.",
                                "path": f"interfaces.{name}.sources"})
-        out = iface.get("output") or {}
-        if out.get("type") == "rawdatastore" and isinstance(out.get("props"), dict):
-            pid = out["props"].get("id")
-            if pid:
-                produced.add(pid)
 
     valid = not any(i["level"] == "error" for i in issues)
     return {"valid": valid, "issues": issues}
