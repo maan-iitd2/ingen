@@ -4,11 +4,10 @@
 //  Real (not stubbed) output via js-yaml. Determinism is the contract: stable key order,
 //  unlimited line width, no anchors — so the live preview and diffs are reproducible.
 //
-//  Extensibility: the interface body is emitted through an ordered registry of section emitters
-//  (INTERFACE_SECTIONS). Supporting a new interface section later = add one entry; nothing else
-//  changes. Sources / columns / output currently pass through structurally (they are already
-//  plain YAML-shaped objects in the model), which is why the skeleton round-trips losslessly
-//  without yet modelling every leaf field.
+//  Extensibility: the interface body is emitted by looping the ordered key list
+//  INTERFACE_SECTION_ORDER. Supporting a new section later = add one string. Sources / columns /
+//  output currently pass through structurally (they are already plain YAML-shaped objects in the
+//  model), which is why the skeleton round-trips losslessly without yet modelling every leaf field.
 
 import yaml from 'js-yaml';
 
@@ -34,26 +33,16 @@ function isEmpty(value) {
   return false;
 }
 
-/**
- * Ordered emitters for an interface body. Each returns the value for its key, or undefined to omit.
- * The ORDER of this array is the order keys appear in the emitted YAML.
- * @type {Array<{ key: string, emit: (iface: Interface) => any }>}
- */
-const INTERFACE_SECTIONS = [
-  { key: 'sources', emit: (i) => i.sources },
-  { key: 'pre_processing', emit: (i) => i.pre_processing },
-  { key: 'columns', emit: (i) => i.columns },
-  { key: 'post_processing', emit: (i) => i.post_processing },
-  { key: 'validation_action', emit: (i) => i.validation_action },
-  { key: 'output', emit: (i) => i.output },
+// Order of sections in an emitted interface body (matches DESIGN.md). Empty sections are dropped.
+const INTERFACE_SECTION_ORDER = [
+  'sources', 'pre_processing', 'columns', 'post_processing', 'validation_action', 'output',
 ];
 
 /** Build the ordered plain object for a single interface, omitting empty sections. */
 function interfaceToObject(iface) {
   const obj = {};
-  for (const section of INTERFACE_SECTIONS) {
-    const value = section.emit(iface);
-    if (!isEmpty(value)) obj[section.key] = value;
+  for (const key of INTERFACE_SECTION_ORDER) {
+    if (!isEmpty(iface[key])) obj[key] = iface[key];
   }
   return obj;
 }
