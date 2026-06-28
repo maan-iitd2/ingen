@@ -38,12 +38,19 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+_LEVEL_RE = re.compile(r"\s-\s(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s-\s")
+_LEVEL_MAP = {"CRITICAL": "error", "ERROR": "error", "WARNING": "warn", "DEBUG": "info", "INFO": "info"}
+
+
 def _level_of(line: str) -> str:
+    """Use ingen's ' - LEVEL - ' log prefix; fall back to a narrow heuristic for prefix-less lines
+    (e.g. raw traceback lines). Avoids flagging data/columns named 'error' as errors."""
+    m = _LEVEL_RE.search(line)
+    if m:
+        return _LEVEL_MAP[m.group(1)]
     low = line.lower()
-    if "traceback" in low or "failed" in low or " error" in low or low.startswith("error"):
+    if "traceback" in low or low.startswith("error"):
         return "error"
-    if "warning" in low or "warn" in low:
-        return "warn"
     return "info"
 
 
@@ -80,7 +87,7 @@ def build_run_record(*, config_id, config_name, overrides, started_at, finished_
         ok = name in succeeded or (name not in failed and exit_code == 0)
         if ok:
             for st in order:
-                stages.append({"interface": name, "stage": st, "status": "ok", "durationMs": 0})
+                stages.append({"interface": name, "stage": st, "status": "ok"})
             continue
         # Failed: infer the furthest stage reached from this interface's log slice.
         reached = _furthest_stage(output, name)
@@ -92,7 +99,7 @@ def build_run_record(*, config_id, config_name, overrides, started_at, finished_
                 status = "failed"
             else:
                 status = "skipped"
-            stages.append({"interface": name, "stage": st, "status": status, "durationMs": 0})
+            stages.append({"interface": name, "stage": st, "status": status})
 
     validation = derive_validation(config, requested, failed)
 

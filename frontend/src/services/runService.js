@@ -21,7 +21,6 @@
  * @property {string} interface
  * @property {string} stage
  * @property {'ok'|'warning'|'failed'|'skipped'} status
- * @property {number} durationMs
  */
 
 /**
