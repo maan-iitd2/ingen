@@ -3,11 +3,13 @@
 fastapi>=0.110
 uvicorn[standard]>=0.27
 pyyaml>=6.0
-httpx>=0.27               # calls the local Ollama model for inChat intent extraction
 python-multipart>=0.0.9  # multipart file upload (POST /api/files/upload)
 # InGen's own runtime deps (pandas, great_expectations, etc.) come from the InGen package.
 
-# --- Optional: HuggingFace local inference backend (INGEN_CHAT_BACKEND=hf) ---
-# Install these to run inChat without an Ollama server. Models auto-download from HF Hub on first use.
-# torch (CPU build):  pip install torch --index-url https://download.pytorch.org/whl/cpu
-# transformers>=4.40  huggingface_hub>=0.23  accelerate>=0.30  safetensors>=0.4.3  tokenizers>=0.19
+# --- inChat: local HuggingFace inference. Model auto-downloads from HF Hub on first use. ---
+# torch CPU build:  pip install torch --index-url https://download.pytorch.org/whl/cpu
+transformers>=4.40
+huggingface_hub>=0.23
+accelerate>=0.30
+safetensors>=0.4.3
+tokenizers>=0.19

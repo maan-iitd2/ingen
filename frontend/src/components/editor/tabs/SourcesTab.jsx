@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Plus, Database, FileText, Globe, Braces, HardDrive, Trash2 } from 'lucide-react';
+import { Plus, Database, FileText, Globe, Braces, Trash2 } from 'lucide-react';
 import { useConfig } from '../../../state/ConfigContext.jsx';
 import { upsertSource, removeSource, upsertInterface, createEmptyInterface } from '../../../models/configModel.js';
 import { SOURCE_TYPES } from '../../../models/constants.js';
@@ -21,7 +21,6 @@ const TYPE_META = {
   mysql:        { icon: Database,  color: '#f59e0b', label: 'MySQL',         desc: 'SQL query against a database' },
   api:          { icon: Globe,     color: '#8b5cf6', label: 'API',           desc: 'HTTP endpoint (REST / SOAP)' },
   json:         { icon: Braces,    color: '#10b981', label: 'JSON',          desc: 'Runtime JSON payload' },
-  rawdatastore: { icon: HardDrive, color: '#ec4899', label: 'Raw Datastore', desc: 'In-memory frame from another interface' },
 };
 
 function summarize(src) {
@@ -29,7 +28,6 @@ function summarize(src) {
   switch (src.type) {
     case 'file': return src.file_path || src.file_type || 'file';
     case 'mysql': return src.database || src.db_token || 'database';
-    case 'rawdatastore': return 'in-memory frame';
     case 'api': return src.url || 'HTTP endpoint';
     case 'json': return 'runtime payload';
     default: return '';

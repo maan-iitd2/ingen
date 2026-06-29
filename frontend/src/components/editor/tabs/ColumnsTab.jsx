@@ -1,14 +1,17 @@
 //  Columns & Formatters editor — card-based layout with clear source → dest mapping.
-//  Each column is a visual card; formatters are chips that expand inline for editing.
+//  Source columns are chosen from a dropdown of headers detected for the interface's sources
+//  (files auto-detect on upload; SQL/API are fetched on demand via the "Fetch columns" button).
 
-import { useState } from 'react';
-import { Plus, ArrowRight, ChevronDown, ChevronUp, Columns } from 'lucide-react';
+import { useReducer, useState } from 'react';
+import { Plus, ArrowRight, ChevronDown, ChevronUp, Columns, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import { useConfig } from '../../../state/ConfigContext.jsx';
 import { useCatalog } from '../../../state/CatalogContext.jsx';
 import SchemaForm from '../../../forms/SchemaForm.jsx';
 import ListControls from '../../common/ListControls.jsx';
 import { listAdd, listUpdate, listRemove, listMove } from '../../../models/interfaceOps.js';
 import { formatterSchema } from '../../../forms/schemas/formatterSchemas.js';
+import { columnsForSources, getColumns, setColumns } from '../../../lib/columnStore.js';
+import { fetchSourceColumns } from '../../../services/fileService.js';
 
 function FormatterRow({ formatter, index, count, onChange, onMove, onRemove }) {
   return (
@@ -26,7 +29,30 @@ function FormatterRow({ formatter, index, count, onChange, onMove, onRemove }) {
   );
 }
 
-function ColumnCard({ col, index, count, isExpanded, onToggle, onUpdate, onRemove, onMove, formatterTypes, onUpdateFmts }) {
+// Strict dropdown: choose a source column from detected headers. An already-saved value that isn't
+// in the detected list is kept as an option so editing a column never silently drops it.
+function SourceColSelect({ value, options, onChange, onFetch }) {
+  const opts = value && !options.includes(value) ? [value, ...options] : options;
+  if (opts.length === 0) {
+    return (
+      <button type="button" className="colcard__colpick-empty" onClick={onFetch}>
+        No columns detected — fetch
+      </button>
+    );
+  }
+  return (
+    <select
+      className="colcard__input colcard__input--select"
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="" disabled>Select a column…</option>
+      {opts.map((c) => <option key={c} value={c}>{c}</option>)}
+    </select>
+  );
+}
+
+function ColumnCard({ col, index, count, isExpanded, onToggle, onUpdate, onRemove, onMove, formatterTypes, onUpdateFmts, srcColumns, onFetch }) {
   const fmts = col.formatters ?? [];
   const [addFmt, setAddFmt] = useState('date');
 
@@ -37,12 +63,12 @@ function ColumnCard({ col, index, count, isExpanded, onToggle, onUpdate, onRemov
 
         <div className="colcard__mapping">
           <div className="colcard__field">
-            <label className="colcard__field-label">Source column</label>
-            <input
-              className="colcard__input"
-              placeholder="src_col_name"
+            <label className="colcard__field-label">Source</label>
+            <SourceColSelect
               value={col.src_col_name ?? ''}
-              onChange={(e) => onUpdate({ ...col, src_col_name: e.target.value })}
+              options={srcColumns}
+              onChange={(v) => onUpdate({ ...col, src_col_name: v })}
+              onFetch={onFetch}
             />
           </div>
 
@@ -51,7 +77,7 @@ function ColumnCard({ col, index, count, isExpanded, onToggle, onUpdate, onRemov
           </div>
 
           <div className="colcard__field">
-            <label className="colcard__field-label">Output column</label>
+            <label className="colcard__field-label">Output</label>
             <input
               className="colcard__input"
               placeholder={col.src_col_name || 'dest_col_name'}
@@ -62,24 +88,25 @@ function ColumnCard({ col, index, count, isExpanded, onToggle, onUpdate, onRemov
         </div>
 
         <div className="colcard__actions">
-          {/* Formatter badge / toggle */}
-          <button
-            className={`colcard__fmt-badge${isExpanded ? ' colcard__fmt-badge--open' : ''}${fmts.length > 0 ? ' colcard__fmt-badge--has' : ''}`}
-            onClick={onToggle}
-            title={fmts.length > 0 ? `${fmts.length} formatter(s) — click to edit` : 'Add a formatter'}
-          >
-            {fmts.length > 0
-              ? <>{fmts.length} fmt{fmts.length !== 1 ? 's' : ''} {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</>
-              : <><Plus size={12} /> fmt</>
-            }
-          </button>
+          <div className="colcard__actions-row">
+            <button className="lctrls__btn" title="Move up" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)}>↑</button>
+            <button className="lctrls__btn" title="Move down" aria-label="Move down" disabled={index === count - 1} onClick={() => onMove(1)}>↓</button>
+          </div>
+          <div className="colcard__actions-row">
+            {/* Formatter badge / toggle */}
+            <button
+              className={`colcard__fmt-badge${isExpanded ? ' colcard__fmt-badge--open' : ''}${fmts.length > 0 ? ' colcard__fmt-badge--has' : ''}`}
+              onClick={onToggle}
+              title={fmts.length > 0 ? `${fmts.length} formatter(s) — click to edit` : 'Add a formatter'}
+            >
+              {fmts.length > 0
+                ? <>{fmts.length} fmt{fmts.length !== 1 ? 's' : ''} {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</>
+                : <><Plus size={12} /> fmt</>
+              }
+            </button>
 
-          <ListControls
-            index={index}
-            count={count}
-            onMove={onMove}
-            onRemove={onRemove}
-          />
+            <button className="lctrls__btn lctrls__btn--del" title="Remove" aria-label="Remove" onClick={onRemove}>✕</button>
+          </div>
         </div>
       </div>
 
@@ -131,11 +158,38 @@ function ColumnCard({ col, index, count, isExpanded, onToggle, onUpdate, onRemov
 }
 
 export default function ColumnsTab({ interfaceName, iface }) {
-  const { updateInterface } = useConfig();
+  const { model, updateInterface } = useConfig();
   const { catalog } = useCatalog();
   const columns = iface.columns ?? [];
+  const sources = iface.sources ?? [];
   const formatterTypes = catalog?.formatters ?? [];
   const [expandedIdx, setExpandedIdx] = useState(null);
+
+  // columnStore writes to localStorage (not reactive) — bump this to re-read after a fetch.
+  const [, refresh] = useReducer((x) => x + 1, 0);
+  const [fetching, setFetching] = useState(false);
+  const [fetchErr, setFetchErr] = useState('');
+
+  const srcColumns = columnsForSources(sources);
+
+  // Fetch headers for every source on this interface that doesn't have them cached yet
+  // (uploaded files already do — this covers SQL/API and typed file paths).
+  const fetchColumns = async () => {
+    setFetching(true);
+    setFetchErr('');
+    try {
+      for (const sid of sources) {
+        const src = model.sourcesById[sid];
+        if (!src || getColumns(sid).length) continue;
+        setColumns(sid, await fetchSourceColumns(src));
+      }
+      refresh();
+    } catch (e) {
+      setFetchErr(e.message || 'Fetch failed');
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const apply = (fn) => updateInterface(interfaceName, fn);
 
@@ -166,20 +220,36 @@ export default function ColumnsTab({ interfaceName, iface }) {
     <div className="tabcontent">
       <div className="colcard-header">
         <p className="tabcontent__hint">
-          Map source columns to output columns. Add formatters to transform values.
+          Map source columns to output columns. Pick the source column from its detected headers.
         </p>
-        {columns.length > 0 && (
-          <button className="btn btn--solid btn--xs" onClick={addColumn}>
-            <Plus size={13} /> Add column
-          </button>
-        )}
+        <div className="colcard-header__actions">
+          {sources.length > 0 && (
+            <button className="btn btn--ghost btn--xs" onClick={fetchColumns} disabled={fetching}>
+              {fetching ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} Fetch columns
+            </button>
+          )}
+          {columns.length > 0 && (
+            <button className="btn btn--solid btn--xs" onClick={addColumn}>
+              <Plus size={13} /> Add column
+            </button>
+          )}
+        </div>
       </div>
+
+      {fetchErr && (
+        <p className="colcard-fetch-err"><AlertCircle size={13} /> {fetchErr}</p>
+      )}
+      {!fetchErr && sources.length > 0 && srcColumns.length === 0 && (
+        <p className="tabcontent__hint colcard-fetch-hint">
+          No source columns detected yet — click <strong>Fetch columns</strong> to read the headers.
+        </p>
+      )}
 
       {columns.length > 0 ? (
         <div className="colcard-list">
           {columns.map((col, i) => (
             <ColumnCard
-              key={`${col.src_col_name ?? ''}:${col.dest_col_name ?? ''}:${i}`}
+              key={i}
               col={col}
               index={i}
               count={columns.length}
@@ -190,6 +260,8 @@ export default function ColumnsTab({ interfaceName, iface }) {
               onMove={(d) => moveCol(i, d)}
               formatterTypes={formatterTypes}
               onUpdateFmts={(fmts) => updateFmts(i, col, fmts)}
+              srcColumns={srcColumns}
+              onFetch={fetchColumns}
             />
           ))}
         </div>

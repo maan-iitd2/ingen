@@ -79,12 +79,15 @@ class ChatRequest(BaseModel):
     columns: list[str] | None = None
     yaml: str | None = None        # current pipeline, so the model edits what exists
     interface: str | None = None   # active interface name
+    history: list[dict] | None = None  # recent [{role, content}] turns for follow-up context
 
 
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     try:
-        return interpret(req.message, req.columns or [], req.yaml or "", req.interface or "")  # {"reply", "ops"}
+        return interpret(
+            req.message, req.columns or [], req.yaml or "", req.interface or "", req.history or []
+        )  # {"reply", "ops"}
     except Exception as exc:  # model load/inference failed → client falls back to its own parser.
         raise HTTPException(status_code=502, detail=f"LLM unavailable: {exc}")
 

@@ -10,7 +10,6 @@ export function SourceNode({ data }) {
   if (d.file_path) rows.push({ key: 'path', value: tr(d.file_path) });
   if (d.database || d.db_token) rows.push({ key: 'db', value: d.database || d.db_token });
   if (d.url) rows.push({ key: 'url', value: tr(d.url) });
-  if (d.type === 'rawdatastore') rows.push({ key: 'frame', value: 'in-memory' });
 
   const cls =
     'custom-node' +

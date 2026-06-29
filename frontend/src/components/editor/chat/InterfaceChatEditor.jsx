@@ -114,13 +114,18 @@ export default function InterfaceChatEditor({ interfaceName, iface }) {
 
   const handleSendMessage = useCallback((textToSend) => {
     if (!textToSend.trim()) return;
+    // Recent dialogue (before this new turn) so the model can resolve follow-ups like "now also add X".
+    const history = messages
+      .filter((m) => m.id !== 'welcome')
+      .slice(-6)
+      .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
     setMessages((prev) => [...prev, { id: `msg-${Date.now()}`, sender: 'user', text: textToSend }]);
     setInputValue('');
     setIsTyping(true);
 
     // Snapshot YAML from current model for the LLM context, then fire the request.
     const yaml = (() => { try { return modelToYaml(model); } catch { return ''; } })();
-    getServices().chat.interpret(textToSend, knownColumns, yaml, interfaceName)
+    getServices().chat.interpret(textToSend, knownColumns, yaml, interfaceName, history)
       .catch(() => ({ ops: regexOps(textToSend), reply: '' }))
       .then(({ ops, reply: modelReply }) => {
         // Apply ops inside the functional updater so they always thread through the LATEST
@@ -138,7 +143,7 @@ export default function InterfaceChatEditor({ interfaceName, iface }) {
         const text = modelReply && (changed || isConversation) ? modelReply : reply;
         setMessages((prev) => [...prev, { id: `msg-reply-${Date.now()}`, sender: 'assistant', text }]);
       });
-  }, [model, updateModel, interfaceName, knownColumns]);
+  }, [model, updateModel, interfaceName, knownColumns, messages]);
 
   const chips = suggestionsFor(iface, knownColumns);
 

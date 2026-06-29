@@ -14,10 +14,12 @@ InGen is a three-tier data transformation and validation platform:
 
 ### Setup
 
+> The setup below uses the **public** npm and PyPI registries — it works out of the box for open-source
+> contributors. **BlackRock employees** working behind the corporate firewall: see
+> [Behind the firewall](#behind-the-firewall-blackrock-employees) first.
+
 **1. Python environment & CLI:**
 ```bash
-./setup.ps1                        # Creates .venv (Python 3.12), installs packages
-# or manually:
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e .                   # Install ingen + runtime deps
@@ -31,7 +33,7 @@ python -m ingen sample-configs/customer_pipeline.yaml
 
 **3. Run backend (from repo root, so relative paths resolve):**
 ```bash
-./start_backend.ps1                # uvicorn backend.app.main:app --reload --port 8000
+uvicorn backend.app.main:app --reload --port 8000
 ```
 
 **4. Run frontend (in `frontend/` directory):**
@@ -41,6 +43,24 @@ npm run dev                        # http://localhost:3000
 ```
 
 When frontend starts, set `NEXT_PUBLIC_ADAPTER_MODE` to `http` in `.env` to connect to backend.
+
+### Behind the firewall (BlackRock employees)
+
+Public registries are typically blocked on the internal network, so point npm and pip at the internal
+Artifactory mirror **locally**. These config files are git-ignored, so they never get committed back into
+the public repo:
+
+```bash
+# frontend/.npmrc  (npm → Artifactory)
+echo "registry=https://developer.blackrock.com/artifactory/api/npm/blk-npm/" > frontend/.npmrc
+
+# pip → Artifactory (per-command, or put the index-url in a local pip.conf)
+pip install -e . --index-url https://developer.blackrock.com/artifactory/api/pypi/blk-pypi/simple
+```
+
+Then run the standard setup commands above. Do **not** commit `frontend/.npmrc`, `pip.conf`, or a
+`package-lock.json` regenerated against Artifactory — the committed lockfile must resolve to public npm so
+open-source contributors can install.
 
 ## Architecture
 

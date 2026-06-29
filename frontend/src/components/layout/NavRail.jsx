@@ -39,7 +39,7 @@ const TRANSFORM_ICONS = {
 };
 const SOURCE_ICONS = {
   file: <FileOutput size={15} />, mysql: <Database size={15} />, api: <Plug size={15} />,
-  json: <Columns size={15} />, rawdatastore: <Layers size={15} />,
+  json: <Columns size={15} />,
 };
 const ACTION_ICONS = {
   add_column: <Columns size={15} />, add_validation: <ShieldCheck size={15} />,
@@ -66,7 +66,6 @@ const SOURCE_DEFAULTS = {
   mysql: (id) => ({ id, type: 'mysql', database: '', query: 'SELECT * FROM table' }),
   api: (id) => ({ id, type: 'api', url: '', method: 'GET' }),
   json: (id) => ({ id, type: 'json' }),
-  rawdatastore: (id) => ({ id, type: 'rawdatastore' }),
 };
 
 function GraphPalette() {

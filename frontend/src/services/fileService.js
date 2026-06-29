@@ -13,3 +13,19 @@ export async function uploadFile(file) {
   }
   return res.json();
 }
+
+//  Read a configured source's column names (first row) via the backend — works for file paths,
+//  MySQL queries, and API endpoints. Returns string[]. Throws with the backend's message on failure.
+export async function fetchSourceColumns(source) {
+  const res = await fetch(`${API}/api/sources/columns`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source }),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Couldn't read columns (${res.status})`);
+  }
+  const { columns } = await res.json();
+  return columns || [];
+}

@@ -1,0 +1,6 @@
+account,account_name,customer_id,status
+ACC100,Lovelace Growth,C001,ACTIVE
+ACC200,Turing Income,C002,ACTIVE
+ACC300,Hopper Institutional,C003,ACTIVE
+ACC400,Johnson Institutional,C004,CLOSED
+ACC500,Dijkstra Reserve,C005,ACTIVE

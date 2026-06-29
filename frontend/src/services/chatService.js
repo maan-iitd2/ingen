@@ -1,15 +1,16 @@
-//  inChat — sends a message + known columns to the local Ollama-backed endpoint and gets back an
-//  ordered list of edit ops (the model never writes YAML). Throws if the LLM is unavailable so the
+//  inChat — sends a message + known columns to the local HuggingFace-backed endpoint and gets back
+//  an ordered list of edit ops (the model never writes YAML). Throws if the LLM is unavailable so the
 //  caller can fall back to its regex parser.
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
-export async function interpretMessage(message, columns = [], yaml = '', interface_ = '') {
+export async function interpretMessage(message, columns = [], yaml = '', interface_ = '', history = []) {
   const res = await fetch(`${API}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // yaml = current pipeline so the model edits what exists; interface = active interface name.
-    body: JSON.stringify({ message, columns, yaml, interface: interface_ }),
+    // yaml = current pipeline so the model edits what exists; interface = active interface name;
+    // history = recent [{role, content}] turns so follow-ups ("now also add X") resolve.
+    body: JSON.stringify({ message, columns, yaml, interface: interface_, history }),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));

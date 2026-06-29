@@ -1,0 +1,39 @@
+# Sample InGen config — filters private-segment customers and formats balance.
+# Paths are relative to the repo root (run the wrapper / CLI from there).
+sources:
+  - id: customers
+    type: file
+    file_type: delimited_file
+    delimiter: ','
+    file_path: sample-data/customers.csv
+    columns: [customer_id, name, segment, country, balance]
+    skip_header_size: 1
+
+interfaces:
+  customers:
+    sources: [customers]
+    pre_processing:
+      - type: filter
+        operator: and
+        cols:
+          - col: segment
+            val: [private]
+    columns:
+      - src_col_name: customer_id
+        dest_col_name: CUSTOMER_ID
+      - src_col_name: name
+        dest_col_name: NAME
+      - src_col_name: country
+        dest_col_name: COUNTRY
+      - src_col_name: balance
+        dest_col_name: BALANCE
+        formatters:
+          - type: float
+            format: '${:,.2f}'
+    output:
+      type: delimited_file
+      props:
+        delimiter: ','
+        path: sample-output/customers_out.csv
+        header:
+          type: delimited_result_header

@@ -1,5 +1,5 @@
 //  Output editor — pick a writer type and configure its props via a schema-driven form. Covers the
-//  four MVP writers (delimited_file, excel, json, rawdatastore). Edits flow to the live YAML.
+//  supported writers (delimited_file, excel, json_writer, splitted_file). Edits flow to the live YAML.
 
 import { useConfig } from '../../../state/ConfigContext.jsx';
 import SchemaForm from '../../../forms/SchemaForm.jsx';

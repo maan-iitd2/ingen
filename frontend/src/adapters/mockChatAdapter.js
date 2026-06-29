@@ -11,9 +11,10 @@ export class MockChatAdapter {
    * @param {string[]} _columns
    * @param {string} _yaml
    * @param {string} _interfaceName
+   * @param {{role: string, content: string}[]} _history
    * @returns {Promise<ChatResult>}
    */
-  async interpret(_message, _columns = [], _yaml = '', _interfaceName = '') {
+  async interpret(_message, _columns = [], _yaml = '', _interfaceName = '', _history = []) {
     throw new Error('LLM unavailable (mock mode) — using regex fallback');
   }
 

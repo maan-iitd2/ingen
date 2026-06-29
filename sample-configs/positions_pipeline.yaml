@@ -1,0 +1,47 @@
+# Sample InGen config — enriches positions with product reference data via a left merge.
+sources:
+  - id: positions
+    type: file
+    file_type: delimited_file
+    delimiter: ','
+    file_path: sample-data/positions.csv
+    columns: [account, cusip, quantity, price, asof_date]
+    skip_header_size: 1
+  - id: products
+    type: file
+    file_type: delimited_file
+    delimiter: ','
+    file_path: sample-data/products.csv
+    columns: [cusip, product_name, asset_class, currency]
+    skip_header_size: 1
+
+interfaces:
+  positions:
+    sources: [positions, products]
+    pre_processing:
+      - type: merge
+        source: products
+        left_key: cusip
+        right_key: cusip
+        merge_type: left
+    columns:
+      - src_col_name: account
+        dest_col_name: ACCOUNT
+      - src_col_name: cusip
+        dest_col_name: CUSIP
+      - src_col_name: product_name
+        dest_col_name: PRODUCT
+      - src_col_name: quantity
+        dest_col_name: QUANTITY
+      - src_col_name: price
+        dest_col_name: PRICE
+        formatters:
+          - type: float
+            format: '${:,.2f}'
+    output:
+      type: delimited_file
+      props:
+        delimiter: ','
+        path: sample-output/positions_out.csv
+        header:
+          type: delimited_result_header

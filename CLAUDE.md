@@ -15,8 +15,7 @@ Three pieces, one repo:
 Python (needs Python 3.9–3.12; **not 3.13+** — great_expectations needs numpy<2 which has no 3.13 wheels):
 
 ```bash
-./setup.ps1                        # fresh .venv (py 3.12) + pip install -e . + backend reqs
-# or manually:
+python -m venv .venv && .venv\Scripts\activate   # py 3.12
 pip install -e .                   # ingen + runtime deps
 pip install -r backend/requirements.txt
 ```
@@ -28,7 +27,7 @@ python -m ingen <config.yml> [run_date] --interfaces a,b --query_params k=v --ov
 
 Run the backend (from repo root, so sample configs' relative paths resolve):
 ```bash
-./start_backend.ps1                # uvicorn backend.app.main:app --reload --port 8000
+uvicorn backend.app.main:app --reload --port 8000
 ```
 
 Frontend (in `frontend/`):
@@ -76,7 +75,9 @@ Config shape reference: `docs/config_reference.md`. Worked examples: `examples/`
 
 ## backend wrapper
 
-`backend/app/main.py` is HTTP routing only; logic is in three pure modules: `schema_validate.py` (validate a config without running), `runner.py` (`execute_run` writes YAML to temp, runs ingen, returns a `RunRecord`), `store.py` (persists run history). Env knobs: `INGEN_WORKDIR`, `INGEN_RUNS_DIR` (default `backend/.runs`), `INGEN_CORS_ORIGINS`.
+`backend/app/main.py` is HTTP routing only; logic is in pure modules: `schema_validate.py` (validate a config without running), `runner.py` (`execute_run` writes YAML to temp, runs ingen, returns a `RunRecord`), `store.py` (persists run history), `files.py` (sample data/config browsing). Env knobs: `INGEN_WORKDIR`, `INGEN_RUNS_DIR` (default `backend/.runs`), `INGEN_CORS_ORIGINS`.
+
+The **inChat** assistant (`docs/chat_assistant.md`) lets users edit a pipeline in plain English. A small model returns `{reply, ops}` JSON — it never writes YAML; `ops` are applied deterministically client-side. `chat.py` loads a local HuggingFace model in-process (default `Qwen/Qwen3-4B`, override via `HF_CHAT_MODEL`) — no separate model server; weights download from HF Hub on first use. Needs `torch` + `transformers` (see `backend/requirements.txt`).
 
 ## frontend
 

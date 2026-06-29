@@ -7,8 +7,6 @@
 import {
   CONFIG_MODEL_VERSION,
   RUN_CONFIG_DEFAULTS,
-  SOURCE_TYPES,
-  OUTPUT_TYPES,
 } from './constants.js';
 import { makeId } from '../utils/id.js';
 
@@ -88,8 +86,8 @@ export function createEmptyInterface() {
 }
 
 /**
- * Add or replace an interface under `name`. Order is preserved/appended — it is YAML-significant
- * for rawdatastore producer/consumer chains (DESIGN.md §0).
+ * Add or replace an interface under `name`. Order is preserved/appended — interfaces run in YAML
+ * declaration order.
  * @param {ConfigModel} model
  * @param {string} name
  * @param {Interface} iface
@@ -120,8 +118,7 @@ export function removeInterface(model, name) {
 }
 
 /**
- * Rename an interface (moves the key in interfacesByName + updates interfaceOrder + any references
- * inside rawdatastore source ids are NOT rewritten — callers must do that separately if needed).
+ * Rename an interface (moves the key in interfacesByName + updates interfaceOrder).
  * @param {ConfigModel} model
  * @param {string} oldName
  * @param {string} newName
@@ -157,8 +154,7 @@ export function reorderInterfaces(model, newOrder) {
 
 /**
  * Cross-reference + structural checks that need no pipeline run. Mirrors the integrity rules the
- * backend relies on (resolved by MetaDataParser / SourceFactory) plus the declaration-order hazard
- * for rawdatastore documented in DESIGN.md §0.
+ * backend relies on (resolved by MetaDataParser / SourceFactory).
  *
  * @param {ConfigModel} model
  * @returns {ConfigIssue[]}
@@ -171,18 +167,13 @@ export function validateConfigModel(model) {
     issues.push({ level: 'warning', code: 'NO_INTERFACES', message: 'Config has no interfaces.' });
   }
 
-  // Track which rawdatastore ids have been produced so far, in declaration order.
-  const producedSoFar = new Set();
-
-  model.interfaceOrder.forEach((name, idx) => {
+  model.interfaceOrder.forEach((name) => {
     const iface = model.interfacesByName[name];
     const path = `interfacesByName.${name}`;
 
-    // Every referenced source id must exist (as a defined source OR as a rawdatastore produced earlier).
+    // Every referenced source id must exist as a defined source.
     (iface.sources ?? []).forEach((sid, i) => {
-      const defined = Boolean(model.sourcesById[sid]);
-      const producedEarlier = producedSoFar.has(sid);
-      if (!defined && !producedEarlier) {
+      if (!model.sourcesById[sid]) {
         issues.push({
           level: 'error',
           code: 'UNKNOWN_SOURCE_REF',
@@ -190,28 +181,7 @@ export function validateConfigModel(model) {
           path: `${path}.sources[${i}]`,
         });
       }
-      // rawdatastore consumed before any interface produced it → runtime failure (order matters).
-      const src = model.sourcesById[sid];
-      if (src?.type === SOURCE_TYPES.RAWDATASTORE && !producedEarlier) {
-        issues.push({
-          level: 'warning',
-          code: 'RAWDATASTORE_ORDER',
-          message:
-            `Interface "${name}" reads rawdatastore "${sid}" before any earlier interface writes it. ` +
-            `InGen runs interfaces in declaration order; move the producer above "${name}".`,
-          path: `${path}.sources[${i}]`,
-        });
-      }
     });
-
-    // Record any rawdatastore this interface PRODUCES (output.type === rawdatastore).
-    const out = iface.output;
-    if (out && out.type === OUTPUT_TYPES.RAWDATASTORE && !Array.isArray(out.props)) {
-      const producedId = out.props?.id;
-      if (producedId) producedSoFar.add(producedId);
-    }
-
-    void idx;
   });
 
   return issues;

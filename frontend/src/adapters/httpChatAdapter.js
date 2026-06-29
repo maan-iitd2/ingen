@@ -14,13 +14,14 @@ export class HttpChatAdapter {
    * @param {string[]} columns
    * @param {string} yaml
    * @param {string} interfaceName
+   * @param {{role: string, content: string}[]} history  recent turns for follow-up context
    * @returns {Promise<ChatResult>}
    */
-  async interpret(message, columns = [], yaml = '', interfaceName = '') {
+  async interpret(message, columns = [], yaml = '', interfaceName = '', history = []) {
     const res = await fetch(`${this._client.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, columns, yaml, interface: interfaceName }),
+      body: JSON.stringify({ message, columns, yaml, interface: interfaceName, history }),
     });
     if (!res.ok) {
       const detail = await res.json().catch(() => ({}));

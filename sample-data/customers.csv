@@ -1,0 +1,8 @@
+customer_id,name,segment,country,balance
+C001,Ada Lovelace,private,UK,152340.50
+C002,Alan Turing,private,UK,98230.00
+C003,Grace Hopper,institutional,US,4820100.25
+C004,Katherine Johnson,institutional,US,3120450.75
+C005,Edsger Dijkstra,private,NL,76540.10
+C006,Barbara Liskov,institutional,US,2210980.00
+C007,Donald Knuth,private,US,189000.00

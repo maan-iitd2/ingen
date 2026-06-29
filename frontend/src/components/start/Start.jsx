@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, FileText, Database, Globe, Braces, HardDrive } from 'lucide-react';
+import { Plus, Trash2, FileText, Database, Globe, Braces } from 'lucide-react';
 
 import { useConfig } from '../../state/ConfigContext.jsx';
 import { useViewMode } from '../../state/ViewModeContext.jsx';
@@ -18,7 +18,6 @@ const TYPE_META = {
   mysql:        { icon: Database,  color: '#f59e0b', label: 'MySQL' },
   api:          { icon: Globe,     color: '#8b5cf6', label: 'API' },
   json:         { icon: Braces,    color: '#10b981', label: 'JSON' },
-  rawdatastore: { icon: HardDrive, color: '#ec4899', label: 'Raw frame' },
 };
 
 export default function Start({ configId }) {

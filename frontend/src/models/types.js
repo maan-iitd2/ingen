@@ -18,7 +18,7 @@
  *
  * @typedef {Object} Source
  * @property {string} id                       Unique source identifier (referenced by interfaces).
- * @property {'file'|'mysql'|'api'|'rawdatastore'|'json'} type
+ * @property {'file'|'mysql'|'api'|'json'} type
  * @property {string} [file_type]              file sources: delimited_file|excel|xml|json|fixed_width
  * @property {string} [file_path]
  * @property {string} [delimiter]
@@ -74,7 +74,7 @@
 /**
  * Output / writer definition.
  * @typedef {Object} Output
- * @property {string} type                     delimited_file|excel|json|json_writer|rawdatastore|splitted_file
+ * @property {string} type                     delimited_file|excel|json|json_writer|splitted_file
  * @property {(Object|Object[])} [props]       props is an array for splitted_file, object otherwise.
  */
 
@@ -121,7 +121,7 @@
 /**
  * The normalized config model the UI edits. Sources and interfaces are stored in lookup maps
  * plus order arrays so the editor can reference them by key while preserving the YAML-significant
- * ordering (interface order matters for rawdatastore producer/consumer — see DESIGN.md §0).
+ * ordering (interfaces run in declaration order).
  *
  * @typedef {Object} ConfigModel
  * @property {ConfigMeta} meta

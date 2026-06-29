@@ -1,5 +1,5 @@
 //  Output `props` descriptors for all writer types supported by the InGen backend.
-//  Derived from ingen/writer/ — InterfaceWriter (delimited_file, excel, json),
+//  Derived from ingen/writer/ — InterfaceWriter (delimited_file, excel),
 //  JsonWriter (json_writer), and SplitFileWriter (splitted_file).
 //  output.type is the discriminator; these schemas cover the output.props body.
 
@@ -19,7 +19,6 @@ export const OUTPUT_SCHEMAS = {
       HEADER_FIELD,
       { key: 'footer', label: 'Footer', kind: 'group', fields: [
         { key: 'type', label: 'Type', kind: 'text', placeholder: 'custom' },
-        { key: 'function', label: 'Function path', kind: 'text', placeholder: 'my.module.footer_fn' },
       ] },
     ],
   },
@@ -33,14 +32,6 @@ export const OUTPUT_SCHEMAS = {
     ],
   },
 
-  json: {
-    label: 'JSON (legacy writer)',
-    schema: [
-      { key: 'path', label: 'Path', kind: 'text', placeholder: 'out/file.json' },
-      { key: 'config', label: 'Write config', kind: 'json', rows: 3, help: '{ "orient": "records", "indent": 2 }' },
-    ],
-  },
-
   json_writer: {
     label: 'JSON writer',
     schema: [
@@ -51,13 +42,6 @@ export const OUTPUT_SCHEMAS = {
         { key: 'method', label: 'HTTP method', kind: 'select', options: ['POST', 'PUT', 'PATCH'] },
         { key: 'headers', label: 'Headers', kind: 'json', rows: 2 },
       ] },
-    ],
-  },
-
-  rawdatastore: {
-    label: 'Rawdatastore (in-memory)',
-    schema: [
-      { key: 'id', label: 'Frame id', kind: 'text', help: 'Consumed by another interface declared after this one as a rawdatastore source. Interfaces run in YAML declaration order.' },
     ],
   },
 

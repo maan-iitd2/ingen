@@ -5,15 +5,16 @@
 #  Uses AutoTokenizer + AutoModelForCausalLM directly so chat templates are applied correctly.
 #  The model is loaded once at first call and kept resident (lazy init).
 #
-#  Default model: Qwen/Qwen3-4B  (4B params, open licence, chat-template, ~8 GB RAM on CPU)
-#  Works well on any machine with 16 GB+ RAM. With 32 GB RAM you get comfortable headroom.
+#  Default model: Qwen/Qwen3-4B  (4B params, open licence, chat-template).
+#  Loaded in float32 (fastest dtype on CPU), so RAM ~= params x 4 bytes: ~16 GB for the 4B default.
+#  Budget for a 24-32 GB machine; 16 GB will swap.
 #
-#  Other options (set HF_CHAT_MODEL env var):
-#    Qwen/Qwen3-4B                    — default, best open model for structured JSON (8 GB RAM)
-#    Qwen/Qwen2.5-7B-Instruct         — larger, higher quality             (~15 GB RAM)
-#    Qwen/Qwen2.5-3B-Instruct         — smaller, faster                    (~7 GB RAM)
-#    Qwen/Qwen2.5-1.5B-Instruct       — fast, lightweight                  (~3 GB RAM)
-#    HuggingFaceTB/SmolLM2-360M-Instruct — smoke-test / very low RAM       (~0.7 GB RAM)
+#  Other options (set HF_CHAT_MODEL env var), RAM in float32:
+#    Qwen/Qwen3-4B                    — default, best open model for structured JSON (~16 GB RAM)
+#    Qwen/Qwen2.5-7B-Instruct         — larger, higher quality             (~30 GB RAM)
+#    Qwen/Qwen2.5-3B-Instruct         — smaller, faster                    (~12 GB RAM)
+#    Qwen/Qwen2.5-1.5B-Instruct       — fast, lightweight                  (~6 GB RAM)
+#    HuggingFaceTB/SmolLM2-360M-Instruct — smoke-test / very low RAM       (~1.4 GB RAM)
 #
 #  NOTE: All Gemma models (google/gemma-*) are GATED and require an HF token + licence accept.
 #  All models above are fully open and download automatically from HuggingFace Hub.
@@ -58,8 +59,30 @@ SYSTEM_PROMPT = (
     "- Prefer column names from the provided known-columns list; if unsure, still emit the op and "
     "the app will guide the user.\n"
     "- A greeting or a question that is not an edit -> ops=[] and a helpful reply.\n"
+    "- If the request is NOT one of the ops above (e.g. train a model, draw a chart, export a PDF), "
+    "return ops=[] and a reply that names what you CAN do — don't invent an op.\n"
     "- One request may need several ops; emit them in order."
 )
+
+# A few worked examples, taught in-context. A 4B model extracts far more reliably from concrete
+# input->JSON pairs than from the schema prose alone. Cover: multi-op edit, greeting, unsupported.
+FEWSHOT = [
+    {"role": "user", "content": "Known columns: ['id', 'status']\n\n"
+        "Request: add columns amount and currency, then drop rows where status is inactive"},
+    {"role": "assistant", "content": '{"reply": "Added two columns and a filter on status.", '
+        '"ops": [{"op": "add_columns", "cols": ["amount", "currency"]}, '
+        '{"op": "add_filter", "col": "status", "val": "inactive"}]}'},
+    {"role": "user", "content": "Known columns: []\n\nRequest: hi, what can you do?"},
+    {"role": "assistant", "content": '{"reply": "I can add or rename columns, add sources and '
+        'filters, add transforms, and set the output format — just describe the change.", "ops": []}'},
+    {"role": "user", "content": "Known columns: ['id']\n\nRequest: train a machine learning model"},
+    {"role": "assistant", "content": '{"reply": "I can\'t train models — I edit pipelines. I can add '
+        'columns, sources, filters, transforms, or set the output.", "ops": []}'},
+]
+
+# Prefill the assistant turn so generation starts inside the JSON object. Forces JSON-first output
+# (no prose, no markdown fence, no stray <think>) and is stitched back on before parsing.
+_PREFILL = '{"reply": "'
 
 # Lazy-loaded model + tokenizer (thread-safe via lock)
 _model = None
@@ -78,6 +101,7 @@ def _load_model():
         import torch
         from transformers import AutoTokenizer, AutoModelForCausalLM
 
+        torch.set_num_threads(os.cpu_count() or 1)  # use all cores for CPU inference
         tok = AutoTokenizer.from_pretrained(HF_MODEL, trust_remote_code=False)
         mdl = AutoModelForCausalLM.from_pretrained(
             HF_MODEL,
@@ -101,8 +125,8 @@ def _extract_json(text: str) -> dict:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    # Markdown code fence: ```json { ... } ```
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    # Markdown code fence: ```json { ... } ``` — greedy so nested op objects aren't cut at the first }
+    fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
     if fenced:
         try:
             return json.loads(fenced.group(1))
@@ -119,15 +143,35 @@ def _extract_json(text: str) -> dict:
     return {}
 
 
-def _build_user_content(message: str, columns: list, yaml: str, interface: str) -> str:
-    """Assemble the user turn content — context first, then the request."""
+_YAML_CAP = 2500  # chars — bounds CPU prefill cost; the model only needs the shape, not every row
+
+
+def _build_user_content(
+    message: str, columns: list, yaml: str, interface: str, history: list | None = None
+) -> str:
+    """Assemble the user turn content — context first, then the request.
+
+    Recent dialogue is folded in as plain text (not as real assistant turns): the stored replies are
+    human-facing prose, so replaying them as assistant turns would teach the model to stop emitting
+    JSON. The few-shot pairs remain the only JSON exemplars."""
     parts = []
     if interface:
         parts.append(f"Active interface: {interface}")
+    if history:
+        lines = []
+        for h in history[-6:]:  # last ~3 turns is plenty of context
+            role = h.get("role", "user")
+            content = str(h.get("content", "")).replace("\n", " ").strip()
+            if content:
+                lines.append(f"{role}: {content[:200]}")
+        if lines:
+            parts.append("Recent conversation:\n" + "\n".join(lines))
     if yaml and yaml.strip():
+        y = yaml.strip()
+        if len(y) > _YAML_CAP:
+            y = y[:_YAML_CAP] + "\n# … (truncated)"
         parts.append(
-            "Current pipeline YAML (reference only — do NOT rewrite; emit ops to modify it):\n"
-            + yaml.strip()
+            "Current pipeline YAML (reference only — do NOT rewrite; emit ops to modify it):\n" + y
         )
     parts.append(f"Known columns: {columns if columns else []}")
     parts.append(f"Request: {message}")
@@ -141,7 +185,9 @@ def _filter_ops(ops) -> list:
     return [o for o in ops if isinstance(o, dict) and o.get("op") in OPS]
 
 
-def interpret(message: str, columns: list, yaml: str = "", interface: str = "") -> dict:
+def interpret(
+    message: str, columns: list, yaml: str = "", interface: str = "", history: list | None = None
+) -> dict:
     """Ask the local HF model for a reply + ordered list of edit ops.
     Same public contract as chat.interpret(). Raises on load/inference errors so the
     FastAPI caller can return 502 and the frontend falls back to its regex parser."""
@@ -151,9 +197,10 @@ def interpret(message: str, columns: list, yaml: str = "", interface: str = "") 
     tok, mdl = _load_model()
     import torch
 
-    user_content = _build_user_content(message, columns, yaml, interface)
+    user_content = _build_user_content(message, columns, yaml, interface, history)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
+        *FEWSHOT,
         {"role": "user", "content": user_content},
     ]
 
@@ -174,23 +221,26 @@ def interpret(message: str, columns: list, yaml: str = "", interface: str = "") 
             add_generation_prompt=True,
         )
 
+    input_text += _PREFILL  # prefill the assistant turn so generation starts inside the JSON
+
     inputs = tok(input_text, return_tensors="pt")
     input_len = inputs["input_ids"].shape[1]
 
     with torch.no_grad():
         output_ids = mdl.generate(
             **inputs,
-            max_new_tokens=512,
+            max_new_tokens=192,     # JSON payloads are tiny; 192 covers a multi-op reply with headroom
             do_sample=False,        # greedy — deterministic, no randomness
             temperature=None,       # must be None when do_sample=False (transformers 5.x)
             top_p=None,             # same
+            repetition_penalty=1.05,  # cheap guard against greedy degenerate loops
             pad_token_id=tok.eos_token_id,
         )
 
-    # Decode only the newly generated tokens (slice off the prompt)
+    # Decode only the newly generated tokens (slice off the prompt), then stitch the prefill back on
     new_tokens = output_ids[0][input_len:]
     raw = tok.decode(new_tokens, skip_special_tokens=True)
-    parsed = _extract_json(raw)
+    parsed = _extract_json(_PREFILL + raw)
 
     if not isinstance(parsed, dict):
         parsed = {}

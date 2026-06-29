@@ -1,0 +1,5 @@
+CUSTOMER_ID,NAME,COUNTRY,BALANCE
+C001,Ada Lovelace,UK,"$152,340.50"
+C002,Alan Turing,UK,"$98,230.00"
+C005,Edsger Dijkstra,NL,"$76,540.10"
+C007,Donald Knuth,US,"$189,000.00"

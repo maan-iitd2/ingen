@@ -4,21 +4,11 @@
 
 import { FILE_TYPES } from '../../models/constants.js';
 
+// Trimmed to the two essentials. Niche knobs (delimiter, encoding, sheet_name, skip rows, dtype,
+// col_specification, etc.) were removed from the builder — they're still settable via raw YAML.
 const FILE = [
   { key: 'file_type', label: 'File type', kind: 'select', options: Object.values(FILE_TYPES), required: true },
   { key: 'file_path', label: 'File path', kind: 'text', placeholder: 'data/file_$date(%Y%m%d).csv', required: true },
-  { key: 'delimiter', label: 'Delimiter', kind: 'text', placeholder: ',', visibleIf: (v) => v.file_type === FILE_TYPES.DELIMITED_FILE },
-  { key: 'columns', label: 'Columns', kind: 'tags' },
-  { key: 'sheet_name', label: 'Sheet name (excel)', kind: 'text', visibleIf: (v) => v.file_type === FILE_TYPES.EXCEL },
-  { key: 'root_tag', label: 'Root tag (xml)', kind: 'text', visibleIf: (v) => v.file_type === FILE_TYPES.XML },
-  { key: 'record_path', label: 'Record path (json)', kind: 'text', visibleIf: (v) => v.file_type === FILE_TYPES.JSON },
-  { key: 'skip_header_size', label: 'Skip header rows', kind: 'number', visibleIf: (v) => [FILE_TYPES.DELIMITED_FILE, FILE_TYPES.EXCEL, FILE_TYPES.FIXED_WIDTH].includes(v.file_type) },
-  { key: 'skip_trailer_size', label: 'Skip trailer rows', kind: 'number', visibleIf: (v) => [FILE_TYPES.DELIMITED_FILE, FILE_TYPES.EXCEL, FILE_TYPES.FIXED_WIDTH].includes(v.file_type) },
-  { key: 'encoding', label: 'Encoding', kind: 'text', placeholder: 'utf-8', visibleIf: (v) => [FILE_TYPES.DELIMITED_FILE, FILE_TYPES.FIXED_WIDTH, FILE_TYPES.JSON, FILE_TYPES.XML].includes(v.file_type) },
-  { key: 'dtype', label: 'Column dtypes', kind: 'json', rows: 2, help: '{ "col1": "str", "col2": "int" }' },
-  { key: 'col_specification', label: 'Column widths (fixed_width)', kind: 'json', rows: 2, help: '[[0,10],[10,20]]', visibleIf: (v) => v.file_type === FILE_TYPES.FIXED_WIDTH },
-  { key: 'use_infile', label: 'Use --infile override', kind: 'toggle' },
-  { key: 'return_empty_if_not_exist', label: 'Empty frame if missing', kind: 'toggle' },
 ];
 
 const MYSQL = [
@@ -26,7 +16,7 @@ const MYSQL = [
   { key: 'query', label: 'SQL query', kind: 'textarea', rows: 4, placeholder: 'SELECT col1, col2 FROM table WHERE date = {date}', required: true },
 ];
 
-// Ordered by how often you reach for it: request → response shaping → retries → batching.
+// Ordered by how often you reach for it: request → response shaping → retries.
 // Niche knobs are gated behind the field that gives them meaning (visibleIf), so the Advanced
 // panel starts short and grows only as you opt in.
 const API = [
@@ -49,19 +39,12 @@ const API = [
   // — retries (interval only matters once you retry) —
   { key: 'retries', label: 'Retries', kind: 'number' },
   { key: 'interval', label: 'Interval (s)', kind: 'number', visibleIf: (v) => v.retries != null },
-  // — batching (queue/concurrency only matter once you batch) —
-  { key: 'batch', label: 'Batch', kind: 'group', fields: [
-    { key: 'size', label: 'Size', kind: 'number' },
-    { key: 'id', label: 'Batch id', kind: 'text' },
-  ] },
-  { key: 'queue_size', label: 'Queue size', kind: 'number', visibleIf: (v) => v.batch?.size != null },
-  { key: 'tasks_len', label: 'Concurrent tasks', kind: 'number', visibleIf: (v) => v.batch?.size != null },
 ];
 
-// json + rawdatastore have no body fields (payload/frame supplied at runtime / in-memory).
+// json has no body fields (payload supplied at runtime).
 const NONE = [];
 
-const SCHEMAS = { file: FILE, mysql: MYSQL, api: API, json: NONE, rawdatastore: NONE };
+const SCHEMAS = { file: FILE, mysql: MYSQL, api: API, json: NONE };
 
 export function sourceSchema(type) {
   return SCHEMAS[type] ?? [];

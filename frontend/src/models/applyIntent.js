@@ -9,8 +9,8 @@ import { upsertSource, upsertInterface, createEmptyInterface, removeSource } fro
 import { listAdd, listUpdate, listRemove, setField } from './interfaceOps.js';
 import { closest } from '../lib/fuzzy.js';
 
-const SOURCE_TYPES = ['file', 'mysql', 'api', 'rawdatastore', 'json'];
-const OUTPUT_TYPES = ['delimited_file', 'excel', 'json', 'json_writer', 'rawdatastore'];
+const SOURCE_TYPES = ['file', 'mysql', 'api', 'json'];
+const OUTPUT_TYPES = ['delimited_file', 'excel', 'json', 'json_writer'];
 
 const colName = (c) => c.dest_col_name || c.src_col_name;
 const noChange = (model, reply) => ({ model, reply, changed: false });

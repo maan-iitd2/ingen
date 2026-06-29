@@ -3,7 +3,7 @@
 //  Calls onSubmit(sourceObject, columns) once a valid source is described.
 
 import { useState } from 'react';
-import { FileText, Database, Globe, Braces, HardDrive, UploadCloud, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { FileText, Database, Globe, Braces, UploadCloud, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 
 import SchemaForm from '../../forms/SchemaForm.jsx';
 import { requiredSourceFields, advancedSourceFields } from '../../forms/schemas/sourceSchemas.js';
@@ -15,7 +15,6 @@ const TYPE_META = {
   mysql:        { icon: Database,  color: '#f59e0b', label: 'MySQL',         desc: 'SQL query against a database' },
   api:          { icon: Globe,     color: '#8b5cf6', label: 'API',           desc: 'HTTP endpoint (REST / SOAP)' },
   json:         { icon: Braces,    color: '#10b981', label: 'JSON',          desc: 'Runtime JSON payload' },
-  rawdatastore: { icon: HardDrive, color: '#ec4899', label: 'Raw Datastore', desc: 'In-memory frame from another interface' },
 };
 const TYPES = Object.values(SOURCE_TYPES);
 

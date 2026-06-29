@@ -15,7 +15,6 @@ export const SOURCE_TYPES = Object.freeze({
   FILE: 'file',
   MYSQL: 'mysql',
   API: 'api',
-  RAWDATASTORE: 'rawdatastore',
   JSON: 'json',
 });
 
@@ -96,7 +95,6 @@ export const OUTPUT_TYPES = Object.freeze({
   EXCEL: 'excel',
   JSON: 'json',
   JSON_WRITER: 'json_writer',
-  RAWDATASTORE: 'rawdatastore',
   SPLITTED_FILE: 'splitted_file',
 });
 

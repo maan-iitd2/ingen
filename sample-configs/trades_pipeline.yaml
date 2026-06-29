@@ -1,0 +1,60 @@
+# Sample InGen config — joins trades to accounts, drops CANCEL trades, formats price and date.
+sources:
+  - id: trades
+    type: file
+    file_type: delimited_file
+    delimiter: ','
+    file_path: sample-data/trades.csv
+    columns: [trade_id, account, cusip, side, quantity, price, trade_date]
+    skip_header_size: 1
+  - id: accounts
+    type: file
+    file_type: delimited_file
+    delimiter: ','
+    file_path: sample-data/accounts.csv
+    columns: [account, account_name, customer_id, status]
+    skip_header_size: 1
+
+interfaces:
+  trades:
+    sources: [trades, accounts]
+    pre_processing:
+      - type: merge
+        source: accounts
+        left_key: account
+        right_key: account
+        merge_type: left
+      - type: not_equals_filter
+        cols:
+          - col: side
+            val: [CANCEL]
+    columns:
+      - src_col_name: trade_id
+        dest_col_name: TRADE_ID
+      - src_col_name: account
+        dest_col_name: ACCOUNT
+      - src_col_name: account_name
+        dest_col_name: ACCOUNT_NAME
+      - src_col_name: side
+        dest_col_name: SIDE
+      - src_col_name: quantity
+        dest_col_name: QUANTITY
+      - src_col_name: price
+        dest_col_name: PRICE
+        formatters:
+          - type: float
+            format: '${:,.2f}'
+      - src_col_name: trade_date
+        dest_col_name: TRADE_DATE
+        formatters:
+          - type: date
+            format:
+              src: '%Y-%m-%d'
+              des: '%m/%d/%Y'
+    output:
+      type: delimited_file
+      props:
+        delimiter: ','
+        path: sample-output/trades_out.csv
+        header:
+          type: delimited_result_header
