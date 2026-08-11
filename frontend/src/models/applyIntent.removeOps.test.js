@@ -1,5 +1,5 @@
-//  Tests for the NEW applyIntent ops added in Phases 3.2/5: remove_column, remove_source,
-//  remove_transform, add_transform, explain. These verify edge cases that could break.
+//  Tests for the mutating applyIntent ops: remove_column, remove_source, remove_transform,
+//  add_transform and explain. These cover the edge cases most likely to corrupt a config.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
