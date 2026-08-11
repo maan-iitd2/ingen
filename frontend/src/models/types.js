@@ -13,7 +13,7 @@
 
 /**
  * A data source definition (type-discriminated union). Stored mostly verbatim from YAML.
- * Only the fields the UI is likely to touch in Phase 0 are named; everything else is allowed
+ * Only the fields the UI actually touches are named; everything else is allowed
  * via the index signature so unknown/advanced fields round-trip losslessly.
  *
  * @typedef {Object} Source

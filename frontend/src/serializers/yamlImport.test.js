@@ -1,4 +1,4 @@
-//  Tests for YAML import flow — covers edge cases that could break the Import YAML feature (Phase 5.1).
+//  Tests for YAML import flow — covers edge cases that could break the Import YAML feature.
 //  Ensures yamlToModel correctly handles meta overrides, malformed input, and round-trip integrity.
 
 import { test } from 'node:test';

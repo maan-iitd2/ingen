@@ -33,7 +33,8 @@ function isEmpty(value) {
   return false;
 }
 
-// Order of sections in an emitted interface body (matches DESIGN.md). Empty sections are dropped.
+// Order of sections in an emitted interface body, matching the order InGen's own sample configs
+// use so generated YAML reads the same as hand-written YAML. Empty sections are dropped.
 const INTERFACE_SECTION_ORDER = [
   'sources', 'pre_processing', 'columns', 'post_processing', 'validation_action', 'output',
 ];
@@ -49,7 +50,7 @@ function interfaceToObject(iface) {
 
 /**
  * Denormalize a ConfigModel into the raw InGen document shape.
- * Top-level key order: sources → interfaces → run_config (matches DESIGN.md §7).
+ * Top-level key order: sources → interfaces → run_config.
  * @param {ConfigModel} model
  * @returns {RawConfig}
  */
