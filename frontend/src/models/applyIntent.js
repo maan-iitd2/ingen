@@ -8,9 +8,10 @@
 import { upsertSource, upsertInterface, createEmptyInterface, removeSource } from './configModel.js';
 import { listAdd, listUpdate, listRemove, setField } from './interfaceOps.js';
 import { closest } from '../lib/fuzzy.js';
+import { SOURCE_TYPES, OUTPUT_TYPES } from './constants.js';
 
-const SOURCE_TYPES = ['file', 'mysql', 'api', 'json'];
-const OUTPUT_TYPES = ['delimited_file', 'excel', 'json', 'json_writer'];
+const SOURCE_TYPE_LIST = Object.values(SOURCE_TYPES);
+const OUTPUT_TYPE_LIST = Object.values(OUTPUT_TYPES);
 
 const colName = (c) => c.dest_col_name || c.src_col_name;
 const noChange = (model, reply) => ({ model, reply, changed: false });
@@ -52,7 +53,7 @@ export function applyOp(model, interfaceName, knownColumns, op) {
     }
 
     case 'add_source': {
-      if (!SOURCE_TYPES.includes(op.type)) return noChange(model, `I can only create sources of type: ${SOURCE_TYPES.join(', ')}.`);
+      if (!SOURCE_TYPE_LIST.includes(op.type)) return noChange(model, `I can only create sources of type: ${SOURCE_TYPE_LIST.join(', ')}.`);
       const name = (op.name ?? '').trim();
       if (!name) return noChange(model, 'A new source needs a name.');
       let m = upsertSource(model, {
@@ -82,7 +83,7 @@ export function applyOp(model, interfaceName, knownColumns, op) {
     }
 
     case 'set_output': {
-      if (!OUTPUT_TYPES.includes(op.type)) return noChange(model, `I can only write to: ${OUTPUT_TYPES.join(', ')}.`);
+      if (!OUTPUT_TYPE_LIST.includes(op.type)) return noChange(model, `I can only write to: ${OUTPUT_TYPE_LIST.join(', ')}.`);
       const props = (op.type === 'delimited_file' || op.type === 'excel')
         ? { path: `output/${interfaceName}.${op.type === 'excel' ? 'xlsx' : 'csv'}` }
         : { id: `out_${interfaceName}` };

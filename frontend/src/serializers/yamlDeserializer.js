@@ -10,7 +10,6 @@
 import yaml from 'js-yaml';
 
 import { createEmptyConfig } from '../models/configModel.js';
-import { RUN_CONFIG_DEFAULTS } from '../models/constants.js';
 
 /** @typedef {import('../models/types.js').ConfigModel} ConfigModel */
 /** @typedef {import('../models/types.js').RawConfig} RawConfig */
@@ -59,13 +58,18 @@ export function parseYaml(text) {
 export function rawConfigToModel(raw, meta = {}) {
   const model = createEmptyConfig(meta);
 
-  // run_config: merge declared values over defaults (RunConfiguration resolves missing names to defaults).
-  model.run_config = { ...RUN_CONFIG_DEFAULTS, ...(raw.run_config ?? {}) };
+  // run_config: keep only what the file declares so a file without one round-trips without one.
+  // The backend's RunConfiguration resolves missing names to defaults.
+  model.run_config = { ...(raw.run_config ?? {}) };
 
   // sources: list → { sourcesById, sourceOrder }, preserving order.
   const sources = Array.isArray(raw.sources) ? raw.sources : [];
-  for (const source of sources) {
-    if (!source || !source.id) continue; // tolerate malformed entries; validation reports them later
+  for (const [i, source] of sources.entries()) {
+    // Fail loudly: the backend does source["id"] and raises on the same input; validateConfigModel
+    // never sees entries dropped here, so silently skipping would hide the problem.
+    if (!source || typeof source !== 'object' || !source.id) {
+      throw new YamlParseError(`sources[${i}] is missing an "id".`);
+    }
     model.sourcesById[source.id] = source;
     model.sourceOrder.push(source.id);
   }

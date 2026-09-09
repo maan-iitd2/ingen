@@ -104,3 +104,7 @@ test('reorderInterfaces changes order but preserves data', () => {
 test('reorderInterfaces rejects invalid permutation', () => {
   assert.throws(() => reorderInterfaces(base(), ['iface_a']), /permutation/);
 });
+
+test('reorderInterfaces rejects repeated names (would silently drop an interface)', () => {
+  assert.throws(() => reorderInterfaces(base(), ['iface_a', 'iface_a']), /permutation/);
+});

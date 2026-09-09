@@ -83,3 +83,14 @@ test('yamlToModel handles YAML with no interfaces gracefully', () => {
   assert.deepEqual(m.sourceOrder, ['s1']);
   assert.deepEqual(m.interfaceOrder, []);
 });
+
+test('yamlToModel throws on a source without an id instead of dropping it', () => {
+  const bad = VALID_YAML.replace('- id: sales', '- name: sales');
+  assert.throws(() => yamlToModel(bad), /sources\[0\] is missing an "id"/);
+});
+
+test('a file without run_config round-trips without one', () => {
+  const m = yamlToModel(VALID_YAML);
+  assert.deepEqual(m.run_config, {});
+  assert.ok(!/run_config/.test(modelToYaml(m)), 'run_config must not be invented on export');
+});

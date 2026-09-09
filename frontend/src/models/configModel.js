@@ -4,10 +4,7 @@
 //  ConfigModel. No React, no I/O. Every function is a pure transform (returns a new model) so it
 //  can be driven by a reducer later and unit-tested in isolation.
 
-import {
-  CONFIG_MODEL_VERSION,
-  RUN_CONFIG_DEFAULTS,
-} from './constants.js';
+import { CONFIG_MODEL_VERSION } from './constants.js';
 import { makeId } from '../utils/id.js';
 
 /** @typedef {import('./types.js').ConfigModel} ConfigModel */
@@ -30,7 +27,7 @@ export function createEmptyConfig(opts = {}) {
       createdAt: now,
       updatedAt: now,
     },
-    run_config: { ...RUN_CONFIG_DEFAULTS },
+    run_config: {}, // only what the user/file declares; the backend's RunConfiguration resolves defaults
     sourcesById: {},
     sourceOrder: [],
     interfacesByName: {},
@@ -143,7 +140,10 @@ export function renameInterface(model, oldName, newName) {
  */
 export function reorderInterfaces(model, newOrder) {
   const known = new Set(model.interfaceOrder);
-  const valid = newOrder.length === known.size && newOrder.every((n) => known.has(n));
+  const valid =
+    newOrder.length === known.size &&
+    new Set(newOrder).size === known.size && // reject repeats: ['a','a'] would silently drop 'b'
+    newOrder.every((n) => known.has(n));
   if (!valid) throw new Error('reorderInterfaces requires a permutation of existing interface names');
   const next = touch(model);
   next.interfaceOrder = [...newOrder];

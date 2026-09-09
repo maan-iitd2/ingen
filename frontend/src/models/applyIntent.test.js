@@ -49,3 +49,9 @@ test('applyOps threads the model so later ops see earlier ones', () => {
   assert.equal(it.columns.find((c) => c.src_col_name === 'region').dest_col_name, 'market');
   assert.equal(it.output.type, 'excel');
 });
+
+test('set_output accepts every OUTPUT_TYPES value from constants (incl. splitted_file)', () => {
+  const { model, changed } = applyOp(baseModel(), IFACE, [], { op: 'set_output', type: 'splitted_file' });
+  assert.ok(changed);
+  assert.equal(model.interfacesByName[IFACE].output.type, 'splitted_file');
+});
